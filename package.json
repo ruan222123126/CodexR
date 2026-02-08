@@ -26,9 +26,23 @@
         {
           "type": "webview",
           "id": "codex.chatView",
-          "name": "Chat with Codex"
+          "name": "Chat with AI"
         }
       ]
+    },
+    "configuration": {
+      "title": "Codex Sidebar",
+      "properties": {
+        "codexSidebar.defaultProvider": {
+          "type": "string",
+          "enum": [
+            "codex",
+            "claude"
+          ],
+          "default": "codex",
+          "description": "Default provider used by the chat input."
+        }
+      }
     }
   },
   "scripts": {
