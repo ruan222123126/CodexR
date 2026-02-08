@@ -11,6 +11,18 @@ export const WEBVIEW_SCRIPT_RENDER = `
                             if (providerSelect) {
                                 providerSelect.disabled = true;
                             }
+                            if (sessionSelect) {
+                                sessionSelect.disabled = true;
+                            }
+                            if (sessionNewBtn) {
+                                sessionNewBtn.disabled = true;
+                            }
+                            if (sessionRenameBtn) {
+                                sessionRenameBtn.disabled = true;
+                            }
+                            if (sessionDeleteBtn) {
+                                sessionDeleteBtn.disabled = true;
+                            }
 
                             sendBtn.classList.add('thinking');
                             sendIcon.innerHTML = '<rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" />';
@@ -31,6 +43,19 @@ export const WEBVIEW_SCRIPT_RENDER = `
                             addBtn.disabled = false;
                             if (providerSelect) {
                                 providerSelect.disabled = false;
+                                providerSelect.value = newSessionProvider;
+                            }
+                            if (sessionSelect) {
+                                sessionSelect.disabled = false;
+                            }
+                            if (sessionNewBtn) {
+                                sessionNewBtn.disabled = false;
+                            }
+                            if (sessionRenameBtn) {
+                                sessionRenameBtn.disabled = false;
+                            }
+                            if (sessionDeleteBtn) {
+                                sessionDeleteBtn.disabled = false;
                             }
 
                             sendBtn.classList.remove('thinking');
@@ -73,7 +98,19 @@ export const WEBVIEW_SCRIPT_RENDER = `
                     }
 
                     function renderPatchCard(entry) {
-                        const summary = 'Add ' + entry.added + ' · Update ' + entry.updated + ' · Delete ' + entry.deleted;
+                        const summary = [
+                            'Add ' + (entry.added || 0),
+                            'Update ' + (entry.updated || 0),
+                            'Delete ' + (entry.deleted || 0),
+                            'Move ' + (entry.moved || 0),
+                        ].join(' · ');
+
+                        const detail = [
+                            'Hunks ' + (entry.hunks || 0),
+                            '+' + (entry.additions || 0),
+                            '-' + (entry.deletions || 0),
+                        ].join(' · ');
+
                         const filesHtml = entry.files.length > 0
                             ? ('<ul class="op-files">' + entry.files.map(file => '<li>' + escapeHtml(file) + '</li>').join('') + '</ul>')
                             : '';
@@ -85,13 +122,14 @@ export const WEBVIEW_SCRIPT_RENDER = `
                             '    <span class="op-status success">Applied</span>',
                             '  </div>',
                             '  <div class="op-command">' + escapeHtml(summary) + '</div>',
+                            '  <div class="op-output">' + escapeHtml(detail) + '</div>',
                             filesHtml,
                             '</div>',
                         ].join('');
                     }
 
-                    function renderThinkingContent(thoughtText) {
-                        const parts = parseThinkingParts(thoughtText);
+                    function renderThinkingContent(thoughtText, segments) {
+                        const parts = parseStreamSegments(segments, thoughtText);
                         if (parts.length === 0) {
                             return '';
                         }

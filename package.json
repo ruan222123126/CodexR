@@ -9,7 +9,11 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onView:codex.chatView",
+    "onCommand:codexSidebar.restoreLatestCheckpoint",
+    "onCommand:codexSidebar.restoreCheckpoint"
+  ],
   "main": "./out/extension.js",
   "contributes": {
     "viewsContainers": {
@@ -30,6 +34,16 @@
         }
       ]
     },
+    "commands": [
+      {
+        "command": "codexSidebar.restoreLatestCheckpoint",
+        "title": "CodexR: Restore Latest Checkpoint"
+      },
+      {
+        "command": "codexSidebar.restoreCheckpoint",
+        "title": "CodexR: Restore Checkpoint..."
+      }
+    ],
     "configuration": {
       "title": "Codex Sidebar",
       "properties": {
@@ -37,10 +51,41 @@
           "type": "string",
           "enum": [
             "codex",
-            "claude"
+            "claude",
+            "pi"
           ],
           "default": "codex",
           "description": "Default provider used by the chat input."
+        },
+        "codexSidebar.parserMode": {
+          "type": "string",
+          "enum": [
+            "v2",
+            "legacy"
+          ],
+          "default": "v2",
+          "description": "Streaming parser mode. Use legacy for quick rollback if parsing regression occurs."
+        },
+        "codexSidebar.codexAutoResumeSession": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically resume the previous Codex exec session for follow-up requests."
+        },
+        "codexSidebar.codexEnforceCheckpointPolicy": {
+          "type": "boolean",
+          "default": true,
+          "description": "Inject a system policy asking Codex to create a checkpoint before file edits."
+        },
+        "codexSidebar.codexRequireHardCheckpoint": {
+          "type": "boolean",
+          "default": true,
+          "description": "Create a real workspace snapshot checkpoint before every Codex request and block execution when checkpoint creation fails."
+        },
+        "codexSidebar.codexHardCheckpointRetention": {
+          "type": "number",
+          "default": 20,
+          "minimum": 1,
+          "description": "Maximum number of hard checkpoint snapshots kept in extension global storage."
         }
       }
     }
@@ -51,16 +96,22 @@
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src",
-    "test": "vscode-test"
+    "test": "vscode-test",
+    "security:check": "npm audit --audit-level=high",
+    "check:strict": "npm run lint && npm run compile && npm run test && npm run security:check"
   },
   "devDependencies": {
-    "@types/vscode": "^1.108.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
-    "typescript-eslint": "^8.54.0",
+    "@types/vscode": "^1.108.0",
+    "@vscode/test-cli": "^0.0.12",
+    "@vscode/test-electron": "^2.5.2",
     "eslint": "^9.39.2",
     "typescript": "^5.9.3",
-    "@vscode/test-cli": "^0.0.12",
-    "@vscode/test-electron": "^2.5.2"
+    "typescript-eslint": "^8.54.0"
+  },
+  "dependencies": {
+    "dompurify": "^3.2.6",
+    "marked": "^15.0.7"
   }
 }

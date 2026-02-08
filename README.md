@@ -1,10 +1,10 @@
-# CodexR - VS Code Chat Interface for Codex & Claude CLI
+# CodexR - VS Code Chat Interface for Codex, Claude & Pi CLI
 
-CodexR is a VS Code extension that provides a sidebar chat interface as a GUI wrapper for Codex CLI and Claude Code CLI.
+CodexR is a VS Code extension that provides a sidebar chat interface as a GUI wrapper for Codex CLI, Claude Code CLI, and Pi CLI.
 
 ## Features
 
-- **Dual Provider Support**: Switch between Codex and Claude directly in the chat input
+- **Multi Provider Support**: Switch between Codex, Claude, and Pi directly in the chat input
 - **Sidebar Chat Interface**: Access AI directly from VS Code's sidebar
 - **Smart Output Parsing**: Automatically separates thinking process from final answer
 - **Markdown Rendering**: Beautiful formatted responses with code syntax highlighting
@@ -15,24 +15,54 @@ CodexR is a VS Code extension that provides a sidebar chat interface as a GUI wr
 
 - Codex provider: `codex` command must be installed and available in PATH
 - Claude provider: `claude` command must be installed and available in PATH
+- Pi provider: `pi` command must be installed and available in PATH
 - VS Code version 1.109.0 or higher
 
 ## Usage
 
 1. Install the extension
 2. Click the CodexR icon in the activity bar
-3. Select provider (`Codex` / `Claude`) in the input bar
+3. Select provider (`Codex` / `Claude` / `Pi`) in the input bar
 4. Type your question in the chat input
 5. Press Enter or click Send to get AI assistance
 
 ## Settings
 
-- `codexSidebar.defaultProvider`: default provider for new input (`codex` or `claude`, default is `codex`)
+- `codexSidebar.defaultProvider`: default provider for new input (`codex`, `claude`, or `pi`, default is `codex`)
+- `codexSidebar.parserMode`: streaming parser mode (`v2` or `legacy`, default `v2`)
+- `codexSidebar.codexAutoResumeSession`: auto-resume last Codex session for follow-up requests (default `true`)
+- `codexSidebar.codexEnforceCheckpointPolicy`: inject a system policy requiring checkpoints before file edits (default `true`)
+- `codexSidebar.codexRequireHardCheckpoint`: create a real workspace snapshot before each Codex request; request is blocked on failure (default `true`)
+- `codexSidebar.codexHardCheckpointRetention`: number of hard snapshots to keep (default `20`)
+
+## Codex Resume & Checkpoint Behavior
+
+- Codex requests now reuse the latest `codex exec` session by default, enabling conversation-level resume.
+- The extension injects a system policy for Codex: before editing/creating files, create a checkpoint first.
+- This policy is skipped for read-only tasks and can be disabled via `codexSidebar.codexEnforceCheckpointPolicy`.
+
+## Hard Checkpoint Guarantee
+
+- Before every Codex request, the extension creates a workspace snapshot under extension global storage.
+- If snapshot creation fails, the Codex run is stopped immediately to guarantee recoverability.
+- Snapshot retention is controlled by `codexSidebar.codexHardCheckpointRetention`.
+
+## Restore Checkpoint
+
+- Run command `CodexR: Restore Latest Checkpoint` from Command Palette.
+- Run command `CodexR: Restore Checkpoint...` to choose any historical checkpoint.
+- The extension creates a safety checkpoint before restore, then rolls workspace files back to the selected snapshot state.
+- Restore overwrites current workspace files (except ignored paths like `.git/`, `node_modules/`, `out/`).
 
 ## Claude Stream Notes
 
 - Claude integration runs with `-p --verbose --output-format stream-json`
 - `--verbose` is required by Claude CLI when using `stream-json`
+
+## Parser Rollback
+
+- The new segmented parser is enabled by default with `codexSidebar.parserMode = v2`.
+- If you hit parsing regressions in production, switch to `codexSidebar.parserMode = legacy` for quick rollback.
 
 ## Development
 
@@ -46,10 +76,19 @@ npm run compile
 # Watch for changes
 npm run watch
 
+# Security / quality gate (local strict checks)
+npm run check:strict
+
 # Package extension
 npm run vscode:prepublish
 vsce package
 ```
+
+## Local Quality Gate
+
+- Run `npm run check:strict` before opening/merging PRs.
+- It executes: lint + compile + extension tests + high severity dependency audit.
+- This repository currently uses local strict checks as the CI baseline.
 
 ## License
 

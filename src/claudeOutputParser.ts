@@ -1,25 +1,36 @@
+import type { StreamSegment } from './streamTypes';
+
 type JsonRecord = Record<string, unknown>;
+
+type TextDelta = {
+    seq: number;
+    index: number;
+    text: string;
+};
 
 export type ClaudeStreamAccumulator = {
     lineBuffer: string;
-    blockTexts: Map<number, string>;
-    looseDeltas: string[];
+    deltas: TextDelta[];
     latestSnapshot: string;
     errors: string[];
+    nextSeq: number;
+    nextLooseIndex: number;
 };
 
 export type ClaudeStreamResult = {
     content: string;
     error: string;
+    segments: StreamSegment[];
 };
 
 export function createClaudeStreamAccumulator(): ClaudeStreamAccumulator {
     return {
         lineBuffer: '',
-        blockTexts: new Map<number, string>(),
-        looseDeltas: [],
+        deltas: [],
         latestSnapshot: '',
         errors: [],
+        nextSeq: 0,
+        nextLooseIndex: Number.MAX_SAFE_INTEGER,
     };
 }
 
@@ -65,7 +76,14 @@ function processLine(accumulator: ClaudeStreamAccumulator, lineRaw: string): voi
         accumulator.errors.push(errorMessage);
     }
 
-    appendDeltaText(parsed, accumulator.blockTexts, accumulator.looseDeltas);
+    const deltaTexts = extractDeltaTexts(parsed);
+    for (const item of deltaTexts) {
+        accumulator.deltas.push({
+            seq: accumulator.nextSeq++,
+            index: item.index,
+            text: item.text,
+        });
+    }
 
     const snapshotText = extractSnapshotText(parsed);
     if (snapshotText) {
@@ -74,12 +92,49 @@ function processLine(accumulator: ClaudeStreamAccumulator, lineRaw: string): voi
 }
 
 function buildResult(accumulator: ClaudeStreamAccumulator): ClaudeStreamResult {
-    const deltaContent = buildDeltaContent(accumulator.blockTexts, accumulator.looseDeltas);
     const uniqueErrors = Array.from(new Set(accumulator.errors.filter(Boolean)));
+    const orderedDeltaText = accumulator.deltas
+        .slice()
+        .sort((a, b) => {
+            if (a.index !== b.index) {
+                return a.index - b.index;
+            }
+            return a.seq - b.seq;
+        })
+        .map(delta => delta.text)
+        .join('');
+
+    const content = orderedDeltaText || accumulator.latestSnapshot;
+
+    const segments: StreamSegment[] = [];
+    let seq = 0;
+
+    if (content) {
+        segments.push({
+            type: 'text',
+            value: content,
+            phase: 'answer',
+            source: 'stdout',
+            seq: seq++,
+        });
+    }
+
+    if (uniqueErrors.length > 0) {
+        for (const message of uniqueErrors) {
+            segments.push({
+                type: 'error',
+                value: message,
+                phase: 'answer',
+                source: 'stderr',
+                seq: seq++,
+            });
+        }
+    }
 
     return {
-        content: deltaContent || accumulator.latestSnapshot,
+        content,
         error: uniqueErrors.join('\n'),
+        segments,
     };
 }
 
@@ -117,53 +172,44 @@ function shouldIgnoreEvent(event: JsonRecord): boolean {
     return false;
 }
 
-function appendDeltaText(event: JsonRecord, blockTexts: Map<number, string>, looseDeltas: string[]): void {
+function extractDeltaTexts(event: JsonRecord): Array<{ index: number; text: string }> {
+    const texts: Array<{ index: number; text: string }> = [];
     const type = readString(event.type).toLowerCase();
     const index = readNumber(event.index);
+    const normalizedIndex = typeof index === 'number' ? index : Number.MAX_SAFE_INTEGER;
 
     if (type === 'content_block_start') {
         const block = readRecord(event.content_block);
         const text = extractTextFromContainer(block);
-        if (!text) {
-            return;
+        if (text) {
+            texts.push({ index: normalizedIndex, text });
         }
-
-        if (typeof index === 'number') {
-            blockTexts.set(index, text);
-        } else {
-            looseDeltas.push(text);
-        }
-        return;
+        return texts;
     }
 
     if (type === 'content_block_delta') {
         const delta = readRecord(event.delta);
         const text = extractDeltaText(delta);
-        if (!text) {
-            return;
+        if (text) {
+            texts.push({ index: normalizedIndex, text });
         }
-
-        if (typeof index === 'number') {
-            const existing = blockTexts.get(index) ?? '';
-            blockTexts.set(index, existing + text);
-        } else {
-            looseDeltas.push(text);
-        }
-        return;
+        return texts;
     }
 
     const inlineDelta = extractDeltaText(readRecord(event.delta));
     if (inlineDelta) {
-        looseDeltas.push(inlineDelta);
-        return;
+        texts.push({ index: normalizedIndex, text: inlineDelta });
+        return texts;
     }
 
     if (type.endsWith('_delta')) {
         const text = readString(event.text);
         if (text) {
-            looseDeltas.push(text);
+            texts.push({ index: normalizedIndex, text });
         }
     }
+
+    return texts;
 }
 
 function extractSnapshotText(event: JsonRecord): string {
@@ -231,18 +277,6 @@ function extractErrorMessage(event: JsonRecord): string {
     }
 
     return '';
-}
-
-function buildDeltaContent(blockTexts: Map<number, string>, looseDeltas: string[]): string {
-    let indexed = '';
-    if (blockTexts.size > 0) {
-        indexed = Array.from(blockTexts.entries())
-            .sort((a, b) => a[0] - b[0])
-            .map(entry => entry[1])
-            .join('');
-    }
-
-    return indexed + looseDeltas.join('');
 }
 
 function extractDeltaText(delta: JsonRecord | undefined): string {

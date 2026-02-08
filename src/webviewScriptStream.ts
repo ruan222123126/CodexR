@@ -62,7 +62,7 @@ export const WEBVIEW_SCRIPT_STREAM = `
                                 const step = Math.max(1, Math.ceil(remaining / 45));
                                 const nextLength = Math.min(target.length, activeStreamState.displayedThought.length + step);
                                 activeStreamState.displayedThought = target.slice(0, nextLength);
-                                activeStreamElements.thinkingContent.innerHTML = renderThinkingContent(activeStreamState.displayedThought);
+                                activeStreamElements.thinkingContent.innerHTML = renderThinkingContent(activeStreamState.displayedThought, activeStreamState.targetSegments || []);
                                 container.scrollTop = container.scrollHeight;
                             }
 
@@ -106,7 +106,7 @@ export const WEBVIEW_SCRIPT_STREAM = `
                                 const step = Math.max(1, Math.ceil(remaining / 40));
                                 const nextLength = Math.min(target.length, activeStreamState.displayedContent.length + step);
                                 activeStreamState.displayedContent = target.slice(0, nextLength);
-                                activeStreamElements.answerBlock.innerHTML = marked.parse(activeStreamState.displayedContent);
+                                activeStreamElements.answerBlock.innerHTML = renderMarkdownSafe(activeStreamState.displayedContent);
                                 container.scrollTop = container.scrollHeight;
                             }
 
@@ -130,13 +130,21 @@ export const WEBVIEW_SCRIPT_STREAM = `
                                 displayedThought: '',
                                 thinkingTimer: null,
                                 phase: 'thinking',
+                                targetSegments: [],
                             };
                         }
 
+                        const segments = Array.isArray(payload.segments) ? payload.segments : [];
                         const thoughtText = payload.thought || '';
                         let answerText = payload.content || '';
 
-                        if (looksLikeThinkingOnly(answerText)) {
+                        if (segments.length > 0) {
+                            const fromSegments = extractAnswerTextFromSegments(segments);
+                            if (fromSegments) {
+                                answerText = fromSegments;
+                            }
+                            activeStreamState.targetSegments = segments;
+                        } else if (looksLikeThinkingOnly(answerText)) {
                             answerText = '';
                         }
 
@@ -147,14 +155,19 @@ export const WEBVIEW_SCRIPT_STREAM = `
 
                         activeStreamState.targetThought = String(thoughtText);
 
-                        if (activeStreamState.phase !== 'answering') {
+                        if (activeStreamState.phase !== 'answering' && segments.length === 0) {
                             scheduleThinkingTyping();
                         }
 
+                        if (segments.length > 0) {
+                            activeStreamState.displayedThought = activeStreamState.targetThought;
+                            activeStreamElements.thinkingContent.innerHTML = renderThinkingContent(activeStreamState.displayedThought, segments);
+                        }
+
                         if (activeStreamState.phase === 'answering') {
-                            if (activeStreamState.targetThought && activeStreamState.displayedThought !== activeStreamState.targetThought) {
+                            if (activeStreamState.targetThought && activeStreamState.displayedThought !== activeStreamState.targetThought && segments.length === 0) {
                                 activeStreamState.displayedThought = activeStreamState.targetThought;
-                                activeStreamElements.thinkingContent.innerHTML = renderThinkingContent(activeStreamState.displayedThought);
+                                activeStreamElements.thinkingContent.innerHTML = renderThinkingContent(activeStreamState.displayedThought, activeStreamState.targetSegments || []);
                             }
 
                             activeStreamElements.answerBlock.style.display = '';

@@ -22,7 +22,12 @@ export const WEBVIEW_SCRIPT_PARSE = `
 
                     function isPatchStart(line) {
                         const trimmed = line.trim();
-                        return trimmed.includes('apply_patch') || trimmed.startsWith('*** Begin Patch');
+                        if (trimmed.startsWith('*** Begin Patch')) {
+                            return true;
+                        }
+
+                        const normalized = trimmed.toLowerCase();
+                        return normalized.startsWith('apply_patch') || normalized.startsWith('exec apply_patch');
                     }
 
                     function isBoundary(line) {
@@ -193,7 +198,7 @@ export const WEBVIEW_SCRIPT_PARSE = `
                             return stripQuote(value);
                         };
 
-                        if (lower.startsWith('powershell.exe') || lower.startsWith('pwsh')) {
+                        if (lower.startsWith('powershell.exe') || lower.startsWith('pwsh') || lower.startsWith('powershell ')) {
                             const rest = removeRunner(cleaned);
                             return {
                                 runnerLabel: 'PowerShell',
@@ -228,10 +233,127 @@ export const WEBVIEW_SCRIPT_PARSE = `
                             };
                         }
 
+                        if (lower.startsWith('zsh') || lower.startsWith('/bin/zsh')) {
+                            const rest = removeRunner(cleaned);
+                            return {
+                                runnerLabel: 'Zsh',
+                                command: fromSwitch(rest, ['-c']) || cleaned,
+                            };
+                        }
+
+                        if (lower === 'sh' || lower.startsWith('sh ') || lower.startsWith('/bin/sh')) {
+                            const rest = removeRunner(cleaned);
+                            return {
+                                runnerLabel: 'Shell',
+                                command: fromSwitch(rest, ['-c']) || cleaned,
+                            };
+                        }
+
+                        if (lower.startsWith('python ') || lower.startsWith('python3 ')) {
+                            const rest = removeRunner(cleaned);
+                            return {
+                                runnerLabel: 'Python',
+                                command: fromSwitch(rest, ['-c']) || cleaned,
+                            };
+                        }
+
+                        if (lower.startsWith('node ')) {
+                            const rest = removeRunner(cleaned);
+                            return {
+                                runnerLabel: 'Node',
+                                command: fromSwitch(rest, ['-e']) || cleaned,
+                            };
+                        }
+
                         return {
                             runnerLabel: 'Command',
                             command: cleaned || '(empty command)',
                         };
+                    }
+
+                    function parseStreamSegments(segments, fallbackThoughtText) {
+                        if (!Array.isArray(segments) || segments.length === 0) {
+                            return parseThinkingParts(fallbackThoughtText);
+                        }
+
+                        const parts = [];
+                        for (const segment of segments) {
+                            if (!segment || segment.phase !== 'thinking') {
+                                continue;
+                            }
+
+                            if (segment.type === 'text' || segment.type === 'error') {
+                                const value = String(segment.value || '').trim();
+                                if (value) {
+                                    parts.push({ type: 'text', value: value });
+                                }
+                                continue;
+                            }
+
+                            if (segment.type === 'exec') {
+                                const value = segment.value || {};
+                                parts.push({
+                                    type: 'exec',
+                                    value: {
+                                        runnerLabel: String(value.runnerLabel || 'Command'),
+                                        command: String(value.command || '(empty command)'),
+                                        cwd: String(value.cwd || ''),
+                                        status: String(value.status || ''),
+                                        duration: String(value.duration || ''),
+                                        exitCode: String(value.exitCode || ''),
+                                        output: String(value.output || ''),
+                                    },
+                                });
+                                continue;
+                            }
+
+                            if (segment.type === 'patch') {
+                                const value = segment.value || {};
+                                parts.push({
+                                    type: 'patch',
+                                    value: {
+                                        added: Number(value.added || 0),
+                                        updated: Number(value.updated || 0),
+                                        deleted: Number(value.deleted || 0),
+                                        moved: Number(value.moved || 0),
+                                        hunks: Number(value.hunks || 0),
+                                        additions: Number(value.additions || 0),
+                                        deletions: Number(value.deletions || 0),
+                                        files: Array.isArray(value.files) ? value.files.map(item => String(item)) : [],
+                                    },
+                                });
+                            }
+                        }
+
+                        if (parts.length > 0) {
+                            return parts;
+                        }
+
+                        return parseThinkingParts(fallbackThoughtText);
+                    }
+
+                    function extractAnswerTextFromSegments(segments) {
+                        if (!Array.isArray(segments) || segments.length === 0) {
+                            return '';
+                        }
+
+                        const answerText = segments
+                            .filter(segment => segment && segment.phase === 'answer' && segment.type === 'text')
+                            .map(segment => String(segment.value || '').trim())
+                            .filter(Boolean)
+                            .join(String.fromCharCode(10) + String.fromCharCode(10))
+                            .trim();
+
+                        if (answerText) {
+                            return answerText;
+                        }
+
+                        return segments
+                            .filter(segment => segment && segment.type === 'error')
+                            .map(segment => String(segment.value || '').trim())
+                            .filter(Boolean)
+                            .join(String.fromCharCode(10))
+                            .trim();
                     }
 
                     function parseThinkingParts(thoughtText) {
@@ -315,13 +437,18 @@ export const WEBVIEW_SCRIPT_PARSE = `
                                     added: 0,
                                     updated: 0,
                                     deleted: 0,
+                                    moved: 0,
+                                    hunks: 0,
+                                    additions: 0,
+                                    deletions: 0,
                                     files: [],
                                 };
 
                                 let foundEnd = false;
 
                                 for (let j = i; j < lines.length; j++) {
-                                    const current = lines[j].trim();
+                                    const currentLine = lines[j];
+                                    const current = currentLine.trim();
 
                                     if (current.startsWith('*** Add File:')) {
                                         patchEntry.added += 1;
@@ -334,6 +461,19 @@ export const WEBVIEW_SCRIPT_PARSE = `
                                     if (current.startsWith('*** Delete File:')) {
                                         patchEntry.deleted += 1;
                                         patchEntry.files.push('- ' + current.slice('*** Delete File:'.length).trim());
+                                    }
+                                    if (current.startsWith('*** Move to:')) {
+                                        patchEntry.moved += 1;
+                                        patchEntry.files.push('> ' + current.slice('*** Move to:'.length).trim());
+                                    }
+                                    if (current.startsWith('@@')) {
+                                        patchEntry.hunks += 1;
+                                    }
+                                    if (currentLine.startsWith('+') && !current.startsWith('+++')) {
+                                        patchEntry.additions += 1;
+                                    }
+                                    if (currentLine.startsWith('-') && !current.startsWith('---')) {
+                                        patchEntry.deletions += 1;
                                     }
 
                                     if (current.startsWith('*** End Patch')) {
@@ -352,7 +492,7 @@ export const WEBVIEW_SCRIPT_PARSE = `
                                     }
                                 }
 
-                                if (!foundEnd && patchEntry.added === 0 && patchEntry.updated === 0 && patchEntry.deleted === 0) {
+                                if (!foundEnd && patchEntry.added === 0 && patchEntry.updated === 0 && patchEntry.deleted === 0 && patchEntry.moved === 0) {
                                     patchEntry.updated = 1;
                                 }
 

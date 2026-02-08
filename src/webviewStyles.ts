@@ -196,7 +196,7 @@ export const WEBVIEW_STYLES = `
                         text-align: center; font-size: 12px; opacity: 0.6; margin: 5px 0;
                     }
                     #input-area {
-                        padding: 15px;
+                        padding: 15px 15px 2px;
                         background: var(--vscode-editor-background);
                         border-top: 1px solid var(--vscode-panel-border);
                         display: flex; justify-content: center; align-items: center;
@@ -206,6 +206,8 @@ export const WEBVIEW_STYLES = `
                     .obsidian-input-wrapper {
                         width: 100%;
                         max-width: 600px;
+                        display: flex;
+                        flex-direction: column;
                     }
                     
                     .obsidian-input-container {
@@ -227,6 +229,11 @@ export const WEBVIEW_STYLES = `
                         border-color: rgba(255, 255, 255, 0.08);
                     }
 
+                    .obsidian-input-container.drop-active {
+                        border-color: rgba(59, 130, 246, 0.7);
+                        box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.5), 0 0 24px rgba(59, 130, 246, 0.25);
+                    }
+
                     /* 思考状态下的输入框样式 */
                     .obsidian-input-container.thinking {
                         background: #111;
@@ -241,10 +248,101 @@ export const WEBVIEW_STYLES = `
                         gap: 8px;
                     }
 
-                    .provider-row {
+                    .attachment-list {
+                        display: none;
+                        flex-wrap: wrap;
+                        gap: 6px;
+                        padding: 0 10px 8px;
+                    }
+
+                    .attachment-chip {
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 6px;
+                        max-width: 100%;
+                        padding: 4px 8px;
+                        border-radius: 999px;
+                        border: 1px solid rgba(255, 255, 255, 0.12);
+                        background: rgba(255, 255, 255, 0.05);
+                        color: rgba(255, 255, 255, 0.75);
+                        font-size: 11px;
+                    }
+
+                    .attachment-chip-name {
+                        max-width: 200px;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
+                    }
+
+                    .attachment-chip-size {
+                        color: rgba(255, 255, 255, 0.45);
+                    }
+
+                    .attachment-chip-remove {
+                        width: 16px;
+                        height: 16px;
+                        padding: 0;
+                        border: none;
+                        border-radius: 50%;
+                        background: rgba(255, 255, 255, 0.12);
+                        color: rgba(255, 255, 255, 0.9);
+                        cursor: pointer;
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        line-height: 1;
+                    }
+
+                    .attachment-chip-remove:hover {
+                        background: rgba(255, 255, 255, 0.2);
+                    }
+
+                    .session-bar {
                         display: flex;
-                        justify-content: flex-end;
-                        margin-top: 2px;
+                        align-items: center;
+                        gap: 8px;
+                        margin-bottom: 8px;
+                    }
+
+                    .session-select {
+                        flex: 1;
+                        min-width: 0;
+                        height: 32px;
+                        border-radius: 10px;
+                        border: 1px solid rgba(255, 255, 255, 0.12);
+                        background: rgba(20, 20, 20, 0.7);
+                        color: rgba(255, 255, 255, 0.9);
+                        padding: 0 10px;
+                        font-size: 12px;
+                        outline: none;
+                    }
+
+                    .session-btn {
+                        width: 30px;
+                        height: 30px;
+                        border-radius: 8px;
+                        border: 1px solid rgba(255, 255, 255, 0.12);
+                        background: rgba(20, 20, 20, 0.72);
+                        color: rgba(255, 255, 255, 0.8);
+                        cursor: pointer;
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        padding: 0;
+                        line-height: 1;
+                        font-size: 14px;
+                    }
+
+                    .session-btn:hover {
+                        background: rgba(255, 255, 255, 0.12);
+                        color: #fff;
+                    }
+
+                    .session-btn:disabled,
+                    .session-select:disabled {
+                        opacity: 0.5;
+                        cursor: not-allowed;
                     }
 
                     .provider-select {
@@ -260,7 +358,7 @@ export const WEBVIEW_STYLES = `
                     }
 
                     .provider-select:disabled {
-                        opacity: 0.5;
+                        opacity: 0.75;
                         cursor: not-allowed;
                     }
                     
@@ -413,11 +511,15 @@ export const WEBVIEW_STYLES = `
 
                     /* 状态指示器 */
                     .obsidian-status-bar {
+                        order: 1;
                         display: flex;
                         justify-content: space-between;
                         align-items: center;
+                        gap: 12px;
                         padding: 0 16px;
-                        margin-top: 12px;
+                        margin-top: 6px;
+                        margin-bottom: 0;
+                        overflow: visible;
                     }
 
                     .obsidian-status-text {
@@ -453,8 +555,12 @@ export const WEBVIEW_STYLES = `
                     }
 
                     .obsidian-hint-text {
+                        order: 2;
                         font-size: 10px;
                         color: rgba(64, 64, 64, 0.5);
+                        min-height: 14px;
+                        padding: 2px 16px 0;
+                        text-align: right;
                     }
                 </style>
 `;

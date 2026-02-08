@@ -5,9 +5,12 @@ import { WEBVIEW_SCRIPT_PARSE } from '../webviewScriptParse';
 type ExecPart = {
     type: 'exec';
     value: {
+        runnerLabel: string;
         command: string;
+        cwd?: string;
         status: string;
         duration: string;
+        exitCode?: string;
         output: string;
     };
 };
@@ -18,6 +21,10 @@ type PatchPart = {
         added: number;
         updated: number;
         deleted: number;
+        moved: number;
+        hunks: number;
+        additions: number;
+        deletions: number;
         files: string[];
     };
 };
@@ -111,6 +118,10 @@ suite('webviewScriptParse', () => {
         assert.strictEqual(patchPart.value.added, 1);
         assert.strictEqual(patchPart.value.updated, 1);
         assert.strictEqual(patchPart.value.deleted, 1);
+        assert.strictEqual(patchPart.value.moved, 0);
+        assert.strictEqual(patchPart.value.hunks, 1);
+        assert.strictEqual(patchPart.value.additions, 2);
+        assert.strictEqual(patchPart.value.deletions, 1);
         const localFiles = Array.from(patchPart.value.files);
         assert.deepStrictEqual(localFiles, ['+ docs/a.txt', '~ src/app.ts', '- old.txt']);
     });
@@ -147,6 +158,7 @@ suite('webviewScriptParse', () => {
         assert.strictEqual(patchPart.value.added, 0);
         assert.strictEqual(patchPart.value.updated, 1);
         assert.strictEqual(patchPart.value.deleted, 0);
+        assert.strictEqual(patchPart.value.moved, 0);
         assert.deepStrictEqual(Array.from(patchPart.value.files), ['~ src/main.ts']);
 
         assert.strictEqual(parts[3].type, 'text');
@@ -171,6 +183,71 @@ suite('webviewScriptParse', () => {
         assert.strictEqual(patchPart.value.added, 0);
         assert.strictEqual(patchPart.value.updated, 1);
         assert.strictEqual(patchPart.value.deleted, 0);
+        assert.strictEqual(patchPart.value.moved, 0);
         assert.deepStrictEqual(Array.from(patchPart.value.files), []);
+    });
+
+    test('parseThinkingParts 应识别 zsh/sh/python/node runner', () => {
+        const parseThinkingParts = loadParseThinkingParts();
+
+        const cases = [
+            { line: 'exec zsh -c "echo z"', expectedRunner: 'Zsh', expectedCommand: 'echo z' },
+            { line: 'exec sh -c "echo s"', expectedRunner: 'Shell', expectedCommand: 'echo s' },
+            { line: 'exec python -c "print(1)"', expectedRunner: 'Python', expectedCommand: 'print(1)' },
+            { line: 'exec node -e "console.log(1)"', expectedRunner: 'Node', expectedCommand: 'console.log(1)' },
+        ];
+
+        for (const item of cases) {
+            const parts = parseThinkingParts(item.line);
+            assert.strictEqual(parts.length, 1);
+            assert.strictEqual(parts[0].type, 'exec');
+            const execPart = parts[0] as ExecPart;
+            assert.strictEqual(execPart.value.runnerLabel, item.expectedRunner);
+            assert.strictEqual(execPart.value.command, item.expectedCommand);
+        }
+    });
+
+    test('parseStreamSegments 应优先消费结构化 thinking segments', () => {
+        const context: Record<string, unknown> = {};
+        vm.runInNewContext(WEBVIEW_SCRIPT_PARSE, context);
+        const parseStreamSegments = context.parseStreamSegments as ((segments: unknown[], fallback: string) => ThinkingPart[]);
+
+        const segments = [
+            { type: 'text', phase: 'thinking', value: '分析步骤一' },
+            {
+                type: 'exec',
+                phase: 'thinking',
+                value: {
+                    runnerLabel: 'Bash',
+                    command: 'echo hello',
+                    cwd: '',
+                    status: 'succeeded',
+                    duration: '20ms',
+                    exitCode: '',
+                    output: 'hello',
+                },
+            },
+            {
+                type: 'patch',
+                phase: 'thinking',
+                value: {
+                    added: 0,
+                    updated: 1,
+                    deleted: 0,
+                    moved: 1,
+                    hunks: 2,
+                    additions: 4,
+                    deletions: 1,
+                    files: ['~ a.ts', '> b.ts'],
+                },
+            },
+            { type: 'text', phase: 'answer', value: '最终答案' },
+        ];
+
+        const parts = parseStreamSegments(segments, 'fallback text');
+        assert.strictEqual(parts.length, 3);
+        assert.strictEqual(parts[0].type, 'text');
+        assert.strictEqual(parts[1].type, 'exec');
+        assert.strictEqual(parts[2].type, 'patch');
     });
 });
