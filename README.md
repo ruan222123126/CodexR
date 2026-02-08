@@ -1,71 +1,44 @@
-# codexsidebar README
+# CodexR - VS Code Chat Interface for Codex CLI
 
-This is the README for your extension "codexsidebar". After writing up a brief description, we recommend including the following sections.
+CodexR is a VS Code extension that provides a sidebar chat interface as a GUI wrapper for the Codex CLI.
 
 ## Features
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
-
-For example if there is an image subfolder under your extension project workspace:
-
-\!\[feature X\]\(images/feature-x.png\)
-
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+- **Sidebar Chat Interface**: Access Codex AI directly from VS Code's sidebar
+- **Smart Output Parsing**: Automatically separates thinking process from final answer
+- **Markdown Rendering**: Beautiful formatted responses with code syntax highlighting
+- **Collapsible Thinking**: View AI reasoning in a collapsible details section
+- **Workspace Integration**: Automatically uses current workspace as working directory
 
 ## Requirements
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+- [Codex CLI](https://github.com/RuanEason/CodexR) must be installed and available in your system PATH
+- VS Code version 1.109.0 or higher
 
-## Extension Settings
+## Usage
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
+1. Install the extension
+2. Click the CodexR icon in the activity bar
+3. Type your question in the chat input
+4. Press Enter or click Send to get AI assistance
 
-For example:
+## Development
 
-This extension contributes the following settings:
+```bash
+# Install dependencies
+npm install
 
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
+# Compile TypeScript
+npm run compile
 
-## Known Issues
+# Watch for changes
+npm run watch
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
+# Package extension
+npm run vscode:prepublish
+vsce package
+```
 
-## Release Notes
+## License
 
-Users appreciate release notes as you update your extension.
-
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
-
----
-
-## Following extension guidelines
-
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
-
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+MIT
