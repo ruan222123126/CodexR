@@ -175,25 +175,342 @@ export const WEBVIEW_SCRIPT_INPUT = `
                         return 'Codex';
                     }
 
+                    function normalizeProvider(provider) {
+                        if (provider === 'claude') {
+                            return 'claude';
+                        }
+                        if (provider === 'pi') {
+                            return 'pi';
+                        }
+                        return 'codex';
+                    }
+
+                    function syncProviderSelectUi(provider) {
+                        const normalizedProvider = normalizeProvider(provider);
+                        if (providerSelectLabel) {
+                            providerSelectLabel.textContent = getProviderLabel(normalizedProvider);
+                        }
+
+                        providerSelectOptions.forEach(option => {
+                            const optionProvider = option.getAttribute('data-provider-option');
+                            const selected = optionProvider === normalizedProvider;
+                            option.setAttribute('data-selected', selected ? 'true' : 'false');
+                            option.setAttribute('aria-selected', selected ? 'true' : 'false');
+                        });
+                    }
+
+                    function closeProviderMenu() {
+                        if (!providerSelectWrap) {
+                            return;
+                        }
+
+                        providerSelectWrap.classList.remove('open');
+                        providerSelectWrap.classList.remove('open-up');
+
+                        if (providerSelectTrigger) {
+                            providerSelectTrigger.setAttribute('aria-expanded', 'false');
+                        }
+                    }
+
+                    function openProviderMenu() {
+                        if (!providerSelectWrap || !providerSelectTrigger || !providerSelectMenu) {
+                            return;
+                        }
+
+                        if (isThinking || (providerSelect && providerSelect.disabled)) {
+                            return;
+                        }
+
+                        const triggerRect = providerSelectTrigger.getBoundingClientRect();
+                        const estimatedHeight = Math.max(180, providerSelectMenu.scrollHeight || 0);
+                        const spaceBelow = window.innerHeight - triggerRect.bottom;
+
+                        providerSelectWrap.classList.toggle('open-up', spaceBelow < estimatedHeight);
+                        providerSelectWrap.classList.add('open');
+                        providerSelectTrigger.setAttribute('aria-expanded', 'true');
+                    }
+
+                    function toggleProviderMenu() {
+                        if (!providerSelectWrap) {
+                            return;
+                        }
+
+                        if (providerSelectWrap.classList.contains('open')) {
+                            closeProviderMenu();
+                            return;
+                        }
+
+                        openProviderMenu();
+                    }
+
+                    function formatHistoryTime(timestamp) {
+                        const value = Number(timestamp);
+                        if (!Number.isFinite(value) || value <= 0) {
+                            return '';
+                        }
+
+                        const deltaMs = Math.max(0, Date.now() - value);
+                        if (deltaMs < 60 * 1000) {
+                            return 'JUST NOW';
+                        }
+
+                        if (deltaMs < 60 * 60 * 1000) {
+                            return Math.floor(deltaMs / (60 * 1000)) + ' MIN AGO';
+                        }
+
+                        if (deltaMs < 24 * 60 * 60 * 1000) {
+                            return Math.floor(deltaMs / (60 * 60 * 1000)) + ' H AGO';
+                        }
+
+                        if (deltaMs < 30 * 24 * 60 * 60 * 1000) {
+                            return Math.floor(deltaMs / (24 * 60 * 60 * 1000)) + ' D AGO';
+                        }
+
+                        return new Date(value).toISOString().slice(0, 10);
+                    }
+
+                    function getHistorySessions() {
+                        const query = String(historySearchText || '').trim().toLowerCase();
+                        const list = Array.isArray(sessions) ? sessions.slice() : [];
+
+                        const filtered = query
+                            ? list.filter(session => {
+                                const title = String(session && session.title ? session.title : '').toLowerCase();
+                                const preview = String(session && session.previewText ? session.previewText : '').toLowerCase();
+                                return title.includes(query) || preview.includes(query);
+                            })
+                            : list;
+
+                        const order = historySortValue === 'updated-asc' ? 'updated-asc' : 'updated-desc';
+                        filtered.sort((left, right) => {
+                            const leftUpdated = Number(left && left.updatedAt ? left.updatedAt : 0);
+                            const rightUpdated = Number(right && right.updatedAt ? right.updatedAt : 0);
+                            return order === 'updated-asc'
+                                ? leftUpdated - rightUpdated
+                                : rightUpdated - leftUpdated;
+                        });
+
+                        return filtered;
+                    }
+
+                    function cleanupSelectedSessionIds() {
+                        const availableIds = new Set(
+                            sessions
+                                .map(session => session && typeof session.id === 'string' ? session.id : '')
+                                .filter(Boolean),
+                        );
+
+                        Array.from(selectedSessionIds).forEach(sessionId => {
+                            if (!availableIds.has(sessionId)) {
+                                selectedSessionIds.delete(sessionId);
+                            }
+                        });
+                    }
+
+                    function updateMultiSelectUi() {
+                        if (historyPage) {
+                            historyPage.classList.toggle('multi-select-mode', isMultiSelectMode);
+                        }
+
+                        if (historyMultiSelectBtn) {
+                            historyMultiSelectBtn.setAttribute('aria-pressed', isMultiSelectMode ? 'true' : 'false');
+                            historyMultiSelectBtn.title = isMultiSelectMode ? '退出多选' : '多选';
+                        }
+
+                        if (historyMultiActions) {
+                            historyMultiActions.style.display = isMultiSelectMode ? 'inline-flex' : 'none';
+                        }
+
+                        if (historySelectedCount) {
+                            historySelectedCount.textContent = String(selectedSessionIds.size);
+                        }
+
+                        const disabled = selectedSessionIds.size === 0;
+                        if (historyMultiDeleteBtn) {
+                            historyMultiDeleteBtn.disabled = disabled;
+                        }
+                        if (historyMultiExportBtn) {
+                            historyMultiExportBtn.disabled = disabled;
+                        }
+                    }
+
+                    function setMultiSelectMode(enabled) {
+                        const nextEnabled = Boolean(enabled);
+                        if (!nextEnabled) {
+                            selectedSessionIds.clear();
+                        }
+                        isMultiSelectMode = nextEnabled;
+                        updateMultiSelectUi();
+                        renderHistoryList();
+                    }
+
+                    function toggleHistorySessionSelection(sessionId) {
+                        if (!sessionId) {
+                            return;
+                        }
+
+                        if (selectedSessionIds.has(sessionId)) {
+                            selectedSessionIds.delete(sessionId);
+                        } else {
+                            selectedSessionIds.add(sessionId);
+                        }
+
+                        updateMultiSelectUi();
+                        renderHistoryList();
+                    }
+
+                    function renderHistoryList() {
+                        if (!historyList) {
+                            return;
+                        }
+
+                        cleanupSelectedSessionIds();
+                        updateMultiSelectUi();
+
+                        const historySessions = getHistorySessions();
+                        if (historySortBtn) {
+                            historySortBtn.textContent = historySortValue === 'updated-asc' ? 'Oldest' : 'Newest';
+                        }
+
+                        if (historySessions.length === 0) {
+                            historyList.innerHTML = '<div class="history-empty">No sessions found.</div>';
+                            return;
+                        }
+
+                        historyList.innerHTML = historySessions.map(session => {
+                            const sessionId = escapeHtml(session && session.id ? session.id : '');
+                            const title = escapeHtml(session && session.title ? session.title : 'Untitled');
+                            const provider = escapeHtml(getProviderLabel(session && session.provider ? session.provider : 'codex'));
+                            const previewSource = String(session && session.previewText ? session.previewText : '').trim();
+                            const preview = escapeHtml(previewSource || 'No messages yet.');
+                            const messageCount = Math.max(0, Number(session && session.messageCount ? session.messageCount : 0) || 0);
+                            const timeLabel = escapeHtml(formatHistoryTime(session && session.updatedAt ? session.updatedAt : 0));
+                            const activeClass = session && session.id === activeSessionId ? ' active' : '';
+                            const selected = Boolean(session && selectedSessionIds.has(session.id));
+                            const checkboxClass = selected ? 'history-item-checkbox checked' : 'history-item-checkbox';
+                            const activeIndicator = session && session.id === activeSessionId
+                                ? '<div class="history-item-indicator"></div>'
+                                : '';
+
+                            return [
+                                '<div class="history-item' + activeClass + '" data-session-id="' + sessionId + '">',
+                                '  <button class="' + checkboxClass + '" data-history-checkbox="true" data-session-id="' + sessionId + '" title="Select session" aria-label="Select session">',
+                                '    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">',
+                                '      <polyline points="3.5 8.5 6.8 11.5 12.5 5"></polyline>',
+                                '    </svg>',
+                                '  </button>',
+                                '  <div class="history-item-title-row">',
+                                '    <div class="history-item-title">' + title + '</div>',
+                                '    <div class="history-item-meta">',
+                                '      <span class="history-item-model">' + provider + '</span>',
+                                '      <span class="history-item-count">MSG ' + messageCount + '</span>',
+                                '    </div>',
+                                '  </div>',
+                                '  <div class="history-item-preview">' + preview + '</div>',
+                                timeLabel
+                                    ? ('  <div class="history-item-time">' + timeLabel + '</div>')
+                                    : '',
+                                '  <div class="history-item-actions">',
+                                '    <button class="history-item-action-btn" data-history-action="rename" data-session-id="' + sessionId + '" title="Rename session">✎</button>',
+                                '    <button class="history-item-action-btn" data-history-action="export" data-session-id="' + sessionId + '" title="Export session">⇩</button>',
+                                '    <button class="history-item-action-btn" data-history-action="delete" data-session-id="' + sessionId + '" title="Delete session">🗑</button>',
+                                '  </div>',
+                                activeIndicator,
+                                '</div>',
+                            ].filter(Boolean).join('');
+                        }).join('');
+                    }
+
+                    function setHistoryMode(enabled) {
+                        historyMode = Boolean(enabled);
+                        isHomeMode = historyMode;
+
+                        if (!historyMode) {
+                            setMultiSelectMode(false);
+                        }
+
+                        document.body.classList.toggle('history-mode', historyMode);
+
+                        if (historyPage) {
+                            historyPage.setAttribute('aria-hidden', historyMode ? 'false' : 'true');
+                        }
+
+                        if (historyMode) {
+                            renderHistoryList();
+                        }
+                    }
+
+                    function createSession() {
+                        if (isThinking) {
+                            return;
+                        }
+
+                        closeProviderMenu();
+                        vscode.postMessage({ type: 'session-create', value: { provider: newSessionProvider } });
+                        if (historyMode) {
+                            setHistoryMode(false);
+                        }
+                    }
+
+                    function handleHistoryAction(action, sessionId) {
+                        if (!sessionId) {
+                            return;
+                        }
+
+                        const session = sessions.find(item => item && item.id === sessionId);
+                        if (!session) {
+                            return;
+                        }
+
+                        if (action === 'rename') {
+                            vscode.postMessage({
+                                type: 'session-rename-request',
+                                value: {
+                                    sessionId,
+                                    currentTitle: session.title || '',
+                                },
+                            });
+                            return;
+                        }
+
+                        if (action === 'export') {
+                            vscode.postMessage({
+                                type: 'session-export',
+                                value: { sessionId },
+                            });
+                            return;
+                        }
+
+                        if (action === 'delete') {
+                            vscode.postMessage({
+                                type: 'session-delete-request',
+                                value: {
+                                    sessionId,
+                                    title: session.title || '',
+                                },
+                            });
+                        }
+                    }
+
                     function setProvider(provider) {
-                        const normalizedProvider = provider === 'claude'
-                            ? 'claude'
-                            : (provider === 'pi' ? 'pi' : 'codex');
+                        const normalizedProvider = normalizeProvider(provider);
                         currentProvider = normalizedProvider;
 
                         if (providerSelect) {
                             providerSelect.value = normalizedProvider;
                         }
+
+                        syncProviderSelectUi(normalizedProvider);
                     }
 
                     function setNewSessionProvider(provider) {
-                        const normalizedProvider = provider === 'claude'
-                            ? 'claude'
-                            : (provider === 'pi' ? 'pi' : 'codex');
+                        const normalizedProvider = normalizeProvider(provider);
                         newSessionProvider = normalizedProvider;
                         if (providerSelect) {
                             providerSelect.value = normalizedProvider;
                         }
+
+                        syncProviderSelectUi(normalizedProvider);
                     }
 
                     function renderChatMessages(messages) {
@@ -467,19 +784,173 @@ export const WEBVIEW_SCRIPT_INPUT = `
 
                     if (sessionNewBtn) {
                         sessionNewBtn.addEventListener('click', () => {
-                            if (isThinking) {
-                                return;
-                            }
-                            vscode.postMessage({ type: 'session-create', value: { provider: newSessionProvider } });
+                            createSession();
                         });
                     }
 
+                    if (addSessionBtn) {
+                        addSessionBtn.addEventListener('click', () => {
+                            createSession();
+                        });
+                    }
+
+                    if (sessionViewAllBtn) {
+                        sessionViewAllBtn.addEventListener('click', () => {
+                            if (isThinking) {
+                                return;
+                            }
+
+                            closeProviderMenu();
+                            setHistoryMode(true);
+                        });
+                    }
+
+                    if (historyBackBtn) {
+                        historyBackBtn.addEventListener('click', () => {
+                            setHistoryMode(false);
+                        });
+                    }
+
+                    if (historySearchInput) {
+                        historySearchInput.addEventListener('input', () => {
+                            historySearchText = historySearchInput.value || '';
+                            renderHistoryList();
+                        });
+                    }
+
+                    if (historySortBtn) {
+                        historySortBtn.addEventListener('click', () => {
+                            historySortValue = historySortValue === 'updated-desc'
+                                ? 'updated-asc'
+                                : 'updated-desc';
+                            historySortOrder = historySortValue;
+                            renderHistoryList();
+                        });
+                    }
+
+                    if (historyMultiSelectBtn) {
+                        historyMultiSelectBtn.addEventListener('click', () => {
+                            setMultiSelectMode(!isMultiSelectMode);
+                        });
+                    }
+
+                    if (historyMultiCancelBtn) {
+                        historyMultiCancelBtn.addEventListener('click', () => {
+                            setMultiSelectMode(false);
+                        });
+                    }
+
+                    if (historyMultiDeleteBtn) {
+                        historyMultiDeleteBtn.addEventListener('click', () => {
+                            if (selectedSessionIds.size === 0) {
+                                return;
+                            }
+
+                            vscode.postMessage({
+                                type: 'session-multi-delete',
+                                value: { sessionIds: Array.from(selectedSessionIds) },
+                            });
+                            setMultiSelectMode(false);
+                        });
+                    }
+
+                    if (historyMultiExportBtn) {
+                        historyMultiExportBtn.addEventListener('click', () => {
+                            if (selectedSessionIds.size === 0) {
+                                return;
+                            }
+
+                            vscode.postMessage({
+                                type: 'session-multi-export',
+                                value: { sessionIds: Array.from(selectedSessionIds) },
+                            });
+                            setMultiSelectMode(false);
+                        });
+                    }
+
+                    if (historyList) {
+                        historyList.addEventListener('click', event => {
+                            const target = event.target;
+                            if (!target || !(target instanceof Element)) {
+                                return;
+                            }
+
+                            const checkbox = target.closest('[data-history-checkbox]');
+                            if (checkbox) {
+                                event.stopPropagation();
+                                if (!isMultiSelectMode) {
+                                    setMultiSelectMode(true);
+                                }
+                                const checkboxSessionId = checkbox.getAttribute('data-session-id') || '';
+                                toggleHistorySessionSelection(checkboxSessionId);
+                                return;
+                            }
+
+                            const actionButton = target.closest('[data-history-action]');
+                            if (actionButton) {
+                                event.stopPropagation();
+                                const action = actionButton.getAttribute('data-history-action') || '';
+                                const actionSessionId = actionButton.getAttribute('data-session-id') || '';
+                                handleHistoryAction(action, actionSessionId);
+                                return;
+                            }
+
+                            const item = target.closest('[data-session-id]');
+                            if (!item || isThinking) {
+                                return;
+                            }
+
+                            const sessionId = item.getAttribute('data-session-id') || '';
+                            if (!sessionId) {
+                                return;
+                            }
+
+                            if (isMultiSelectMode) {
+                                toggleHistorySessionSelection(sessionId);
+                                return;
+                            }
+
+                            if (sessionId !== activeSessionId) {
+                                vscode.postMessage({ type: 'session-switch', value: { sessionId } });
+                            }
+                            setHistoryMode(false);
+                        });
+                    }
+
+                    if (providerSelectTrigger) {
+                        providerSelectTrigger.addEventListener('click', event => {
+                            event.preventDefault();
+                            toggleProviderMenu();
+                        });
+                    }
+
+                    providerSelectOptions.forEach(option => {
+                        option.addEventListener('click', event => {
+                            event.preventDefault();
+                            event.stopPropagation();
+
+                            if (!providerSelect) {
+                                return;
+                            }
+
+                            const nextProvider = normalizeProvider(option.getAttribute('data-provider-option'));
+                            providerSelect.value = nextProvider;
+                            providerSelect.dispatchEvent(new Event('change'));
+                            closeProviderMenu();
+                        });
+                    });
+
                     if (providerSelect) {
                         providerSelect.addEventListener('change', () => {
-                            const nextProvider = providerSelect.value === 'claude'
-                                ? 'claude'
-                                : (providerSelect.value === 'pi' ? 'pi' : 'codex');
+                            const nextProvider = normalizeProvider(providerSelect.value);
                             setNewSessionProvider(nextProvider);
+
+                            if (activeSessionId && currentProvider !== nextProvider) {
+                                vscode.postMessage({
+                                    type: 'session-provider-update',
+                                    value: { sessionId: activeSessionId, provider: nextProvider },
+                                });
+                            }
                         });
                     }
 
@@ -574,6 +1045,33 @@ export const WEBVIEW_SCRIPT_INPUT = `
                         handleDropEvent(event);
                     });
 
+                    document.addEventListener('click', event => {
+                        if (!providerSelectWrap || !providerSelectWrap.classList.contains('open')) {
+                            return;
+                        }
+
+                        const target = event.target;
+                        if (target instanceof Element && providerSelectWrap.contains(target)) {
+                            return;
+                        }
+
+                        closeProviderMenu();
+                    });
+
+                    window.addEventListener('resize', () => {
+                        if (!providerSelectWrap || !providerSelectWrap.classList.contains('open')) {
+                            return;
+                        }
+
+                        openProviderMenu();
+                    });
+
+                    document.addEventListener('keydown', event => {
+                        if (event.key === 'Escape') {
+                            closeProviderMenu();
+                        }
+                    });
+
                     document.getElementById('send-btn').addEventListener('click', send);
                     inputBox.addEventListener('keydown', (e) => {
                         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
@@ -595,6 +1093,7 @@ export const WEBVIEW_SCRIPT_INPUT = `
                             sessions = Array.isArray(value.sessions) ? value.sessions : [];
                             activeSessionId = typeof value.activeSessionId === 'string' ? value.activeSessionId : '';
                             renderSessionOptions();
+                            renderHistoryList();
                             return;
                         }
 
@@ -614,6 +1113,7 @@ export const WEBVIEW_SCRIPT_INPUT = `
                             applySessionMeta(session);
                             setNewSessionProvider(session.provider);
                             renderSessionOptions();
+                            renderHistoryList();
                             renderChatMessages(sessionMessages);
                             selectedAttachments = [];
                             renderAttachments();

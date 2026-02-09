@@ -884,11 +884,6 @@ export const WEBVIEW_STYLES = `
                         background: linear-gradient(180deg, rgba(20, 20, 20, 0.95), rgba(12, 12, 12, 0.92));
                     }
 
-                    /* 会话模式下隐藏 Recent Tasks 标题和 View all 按钮 */
-                    body:not(.home-mode) .session-header {
-                        display: none;
-                    }
-
                     .session-header-title {
                         font-size: 13px;
                         font-weight: 600;

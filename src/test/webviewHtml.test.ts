@@ -35,6 +35,22 @@ suite('webviewHtml', () => {
         assert.ok(!openMenuStyle.includes('translateY('));
         assert.ok(!openMenuStyle.includes('scale('));
     });
+
+    test('Recent Tasks 头部不应被默认隐藏', () => {
+        const html = buildHtml();
+        assert.ok(!html.includes('body:not(.home-mode) .session-header'));
+    });
+
+    test('应绑定模型切换、会话新建和历史页入口事件', () => {
+        const html = buildHtml();
+        assert.ok(html.includes("providerSelectTrigger.addEventListener('click'"));
+        assert.ok(html.includes("addSessionBtn.addEventListener('click'"));
+        assert.ok(html.includes("sessionViewAllBtn.addEventListener('click'"));
+        assert.ok(html.includes("historyBackBtn.addEventListener('click'"));
+        assert.ok(html.includes("historyMultiSelectBtn.addEventListener('click'"));
+        assert.ok(html.includes("historyMultiDeleteBtn.addEventListener('click'"));
+        assert.ok(html.includes("historyMultiExportBtn.addEventListener('click'"));
+    });
 });
 
 function extractCssBlock(html: string, selector: string): string {
