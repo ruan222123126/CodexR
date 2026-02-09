@@ -1,17 +1,14 @@
+/**
+ * Webview Script - Input Module
+ * Refactored to combine multiple sub-modules for better maintainability
+ */
+
+import { ATTACHMENT_MANAGER_SCRIPT, DROP_HANDLER_SCRIPT, INPUT_EVENTS_SCRIPT } from './scripts/input';
+
 export const WEBVIEW_SCRIPT_INPUT = `
-                    function formatAttachmentSize(bytes) {
-                        const size = Number(bytes);
-                        if (!Number.isFinite(size) || size < 0) {
-                            return '';
-                        }
-                        if (size < 1024) {
-                            return size + ' B';
-                        }
-                        if (size < 1024 * 1024) {
-                            return (size / 1024).toFixed(1) + ' KB';
-                        }
-                        return (size / (1024 * 1024)).toFixed(1) + ' MB';
-                    }
+                    ${ATTACHMENT_MANAGER_SCRIPT}
+
+                    ${DROP_HANDLER_SCRIPT}
 
                     function showHintMessage(text, timeoutMs) {
                         if (!hintText) {
@@ -30,139 +27,6 @@ export const WEBVIEW_SCRIPT_INPUT = `
                                 }
                             }, timeoutMs);
                         }
-                    }
-
-                    function mergeAttachments(nextAttachments) {
-                        const beforeCount = selectedAttachments.length;
-                        const merged = new Map();
-                        selectedAttachments.forEach(item => {
-                            if (item && item.path) {
-                                merged.set(item.path, item);
-                            }
-                        });
-                        (nextAttachments || []).forEach(item => {
-                            if (item && item.path) {
-                                merged.set(item.path, item);
-                            }
-                        });
-                        selectedAttachments = Array.from(merged.values()).slice(0, 8);
-
-                        const incomingCount = Array.isArray(nextAttachments) ? nextAttachments.length : 0;
-                        const hiddenByLimit = Math.max(0, beforeCount + incomingCount - selectedAttachments.length);
-                        return { hiddenByLimit };
-                    }
-
-                    function removeAttachmentByIndex(index) {
-                        if (!Number.isInteger(index) || index < 0 || index >= selectedAttachments.length) {
-                            return;
-                        }
-                        selectedAttachments.splice(index, 1);
-                        renderAttachments();
-                    }
-
-                    function renderAttachments() {
-                        if (!attachmentList) {
-                            return;
-                        }
-
-                        if (!selectedAttachments.length) {
-                            attachmentList.innerHTML = '';
-                            attachmentList.style.display = 'none';
-                            return;
-                        }
-
-                        attachmentList.style.display = 'flex';
-                        attachmentList.innerHTML = selectedAttachments.map((item, index) => {
-                            const name = escapeHtml(item.name || item.path || 'attachment');
-                            const filePath = escapeHtml(item.path || '');
-                            const sizeText = formatAttachmentSize(item.size);
-                            const sizeHtml = sizeText ? ('<span class="attachment-chip-size">' + escapeHtml(sizeText) + '</span>') : '';
-                            return [
-                                '<div class="attachment-chip" title="' + filePath + '">',
-                                '  <span class="attachment-chip-name">' + name + '</span>',
-                                sizeHtml,
-                                '  <button class="attachment-chip-remove" data-index="' + index + '" title="Remove attachment">×</button>',
-                                '</div>',
-                            ].join('');
-                        }).join('');
-
-                        attachmentList.querySelectorAll('.attachment-chip-remove').forEach(button => {
-                            button.addEventListener('click', event => {
-                                const target = event.currentTarget;
-                                if (!target) {
-                                    return;
-                                }
-                                const indexText = target.getAttribute('data-index');
-                                if (indexText === null) {
-                                    return;
-                                }
-                                const index = Number(indexText);
-                                removeAttachmentByIndex(index);
-                            });
-                        });
-                    }
-
-                    function setDropState(active) {
-                        if (!inputContainer) {
-                            return;
-                        }
-                        if (active) {
-                            inputContainer.classList.add('drop-active');
-                            showHintMessage('Drop files to attach', 0);
-                            return;
-                        }
-                        inputContainer.classList.remove('drop-active');
-                        if (!isThinking) {
-                            showHintMessage('', 0);
-                        }
-                    }
-
-                    function buildAttachmentsFromDrop(files) {
-                        const result = [];
-                        for (let i = 0; i < files.length; i++) {
-                            const file = files[i];
-                            if (!file || !file.path) {
-                                continue;
-                            }
-                            result.push({
-                                path: file.path,
-                                name: file.name || file.path,
-                                size: Number.isFinite(file.size) ? file.size : undefined,
-                            });
-                        }
-                        return result;
-                    }
-
-                    function handleDropEvent(event) {
-                        if (isThinking) {
-                            return;
-                        }
-
-                        const files = event.dataTransfer && event.dataTransfer.files
-                            ? event.dataTransfer.files
-                            : null;
-                        if (!files || files.length === 0) {
-                            return;
-                        }
-
-                        const attachments = buildAttachmentsFromDrop(files);
-                        if (!attachments.length) {
-                            return;
-                        }
-
-                        const mergeResult = mergeAttachments(attachments);
-                        renderAttachments();
-                        if (mergeResult.hiddenByLimit > 0) {
-                            showHintMessage('Only first 8 attachments kept', 2500);
-                        }
-                    }
-
-                    function isFileDrag(event) {
-                        const types = event.dataTransfer && event.dataTransfer.types ? event.dataTransfer.types : [];
-                        if (!types || !types.length) {
-                            return false;
-                        }
-                        return Array.from(types).includes('Files');
                     }
 
                     function getProviderLabel(provider) {
@@ -423,7 +287,6 @@ export const WEBVIEW_SCRIPT_INPUT = `
 
                     function setHistoryMode(enabled) {
                         historyMode = Boolean(enabled);
-                        isHomeMode = historyMode;
 
                         if (!historyMode) {
                             setMultiSelectMode(false);
@@ -440,16 +303,63 @@ export const WEBVIEW_SCRIPT_INPUT = `
                         }
                     }
 
+                    function setHomeMode(enabled) {
+                        isHomeMode = Boolean(enabled);
+                        document.body.classList.toggle('home-mode', isHomeMode);
+
+                        if (isHomeMode) {
+                            renderRecentTasks();
+                            container.innerHTML = '';
+                        }
+                    }
+
+                    function renderRecentTasks() {
+                        if (!recentTasksList) {
+                            return;
+                        }
+
+                        const recentSessions = Array.isArray(sessions) ? sessions.slice() : [];
+                        recentSessions.sort((left, right) => {
+                            const leftUpdated = Number(left && left.updatedAt ? left.updatedAt : 0);
+                            const rightUpdated = Number(right && right.updatedAt ? right.updatedAt : 0);
+                            return rightUpdated - leftUpdated;
+                        });
+
+                        const topSessions = recentSessions.slice(0, 5);
+
+                        if (topSessions.length === 0) {
+                            recentTasksList.innerHTML = '<div class="recent-tasks-empty">No recent tasks</div>';
+                            return;
+                        }
+
+                        recentTasksList.innerHTML = topSessions.map(session => {
+                            const sessionId = escapeHtml(session && session.id ? session.id : '');
+                            const title = escapeHtml(session && session.title ? session.title : 'Untitled');
+                            const provider = escapeHtml(getProviderLabel(session && session.provider ? session.provider : 'codex'));
+                            const timeLabel = escapeHtml(formatHistoryTime(session && session.updatedAt ? session.updatedAt : 0));
+
+                            return [
+                                '<div class="recent-task-item" data-recent-session-id="' + sessionId + '">',
+                                '  <div class="recent-task-info">',
+                                '    <div class="recent-task-title">' + title + '</div>',
+                                '    <div class="recent-task-meta">',
+                                '      <span class="recent-task-provider">' + provider + '</span>',
+                                timeLabel ? '      <span class="recent-task-time">' + timeLabel + '</span>' : '',
+                                '    </div>',
+                                '  </div>',
+                                '</div>',
+                            ].filter(Boolean).join('');
+                        }).join('');
+                    }
+
                     function createSession() {
                         if (isThinking) {
                             return;
                         }
 
                         closeProviderMenu();
-                        vscode.postMessage({ type: 'session-create', value: { provider: newSessionProvider } });
-                        if (historyMode) {
-                            setHistoryMode(false);
-                        }
+                        setHistoryMode(false);
+                        setHomeMode(true);
                     }
 
                     function handleHistoryAction(action, sessionId) {
@@ -741,33 +651,7 @@ export const WEBVIEW_SCRIPT_INPUT = `
                         container.scrollTop = container.scrollHeight;
                     }
 
-                    function send() {
-                        if (isThinking) {
-                            vscode.postMessage({ type: 'cancel' });
-                            return;
-                        }
-
-                        const text = inputBox.value.trim();
-                        if (!text) return;
-
-                        if (!activeSessionId) {
-                            showHintMessage('Please create a session first', 2000);
-                            return;
-                        }
-
-                        vscode.postMessage({
-                            type: 'userInput',
-                            value: {
-                                prompt: text,
-                                provider: currentProvider,
-                                attachments: selectedAttachments,
-                                sessionId: activeSessionId,
-                            },
-                        });
-                        inputBox.value = '';
-                        selectedAttachments = [];
-                        renderAttachments();
-                    }
+                    ${INPUT_EVENTS_SCRIPT}
 
                     if (sessionSelect) {
                         sessionSelect.addEventListener('change', () => {
@@ -778,7 +662,7 @@ export const WEBVIEW_SCRIPT_INPUT = `
                             if (!sessionId) {
                                 return;
                             }
-                            vscode.postMessage({ type: 'session-switch', value: { sessionId } });
+                            vscode.postMessage({ type: 'session-switch' , value: { sessionId } });
                         });
                     }
 
@@ -823,7 +707,6 @@ export const WEBVIEW_SCRIPT_INPUT = `
                             historySortValue = historySortValue === 'updated-desc'
                                 ? 'updated-asc'
                                 : 'updated-desc';
-                            historySortOrder = historySortValue;
                             renderHistoryList();
                         });
                     }
@@ -1008,43 +891,6 @@ export const WEBVIEW_SCRIPT_INPUT = `
                         });
                     }
 
-                    document.addEventListener('dragenter', event => {
-                        if (!isFileDrag(event) || isThinking) {
-                            return;
-                        }
-                        event.preventDefault();
-                        dragDepth += 1;
-                        setDropState(true);
-                    });
-
-                    document.addEventListener('dragover', event => {
-                        if (!isFileDrag(event) || isThinking) {
-                            return;
-                        }
-                        event.preventDefault();
-                    });
-
-                    document.addEventListener('dragleave', event => {
-                        if (!isFileDrag(event)) {
-                            return;
-                        }
-                        event.preventDefault();
-                        dragDepth = Math.max(0, dragDepth - 1);
-                        if (dragDepth === 0) {
-                            setDropState(false);
-                        }
-                    });
-
-                    document.addEventListener('drop', event => {
-                        if (!isFileDrag(event)) {
-                            return;
-                        }
-                        event.preventDefault();
-                        dragDepth = 0;
-                        setDropState(false);
-                        handleDropEvent(event);
-                    });
-
                     document.addEventListener('click', event => {
                         if (!providerSelectWrap || !providerSelectWrap.classList.contains('open')) {
                             return;
@@ -1072,11 +918,6 @@ export const WEBVIEW_SCRIPT_INPUT = `
                         }
                     });
 
-                    document.getElementById('send-btn').addEventListener('click', send);
-                    inputBox.addEventListener('keydown', (e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
-                    });
-
                     window.addEventListener('message', event => {
                         const msg = event.data;
                         if (msg.type === 'provider-init') {
@@ -1094,6 +935,9 @@ export const WEBVIEW_SCRIPT_INPUT = `
                             activeSessionId = typeof value.activeSessionId === 'string' ? value.activeSessionId : '';
                             renderSessionOptions();
                             renderHistoryList();
+                            if (isHomeMode) {
+                                renderRecentTasks();
+                            }
                             return;
                         }
 
@@ -1117,6 +961,7 @@ export const WEBVIEW_SCRIPT_INPUT = `
                             renderChatMessages(sessionMessages);
                             selectedAttachments = [];
                             renderAttachments();
+                            setHomeMode(false);
                             return;
                         }
 

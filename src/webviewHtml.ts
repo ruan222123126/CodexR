@@ -117,10 +117,11 @@ export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri
                 <div id="chat-container"></div>
                 <div id="input-area">
                     <div class="obsidian-input-wrapper">
-                        <div class="session-header">
+                        <div id="session-header" class="session-header">
                             <span class="session-header-title">Recent Tasks</span>
                             <button id="session-view-all-btn" class="session-view-all-btn" title="View all sessions">View all</button>
                         </div>
+                        <div id="recent-tasks-list" class="recent-tasks-list"></div>
                         <select id="session-select" class="session-select session-select-hidden" title="Select session" aria-hidden="true" tabindex="-1"></select>
                         <div id="input-container" class="obsidian-input-container">
                             <div class="obsidian-progress-bar"></div>
