@@ -9,7 +9,7 @@ export const WEBVIEW_SCRIPT_STREAM = `
                         details.open = true;
 
                         const summary = document.createElement('summary');
-                        summary.innerText = 'Thinking Process';
+                        applyThinkingSummary(details, summary, '', []);
 
                         const thinkingContent = document.createElement('div');
                         thinkingContent.className = 'thinking-content';
@@ -26,7 +26,7 @@ export const WEBVIEW_SCRIPT_STREAM = `
                         container.appendChild(wrapper);
                         container.scrollTop = container.scrollHeight;
 
-                        return { wrapper, details, thinkingContent, answerBlock };
+                        return { wrapper, details, summary, thinkingContent, answerBlock };
                     }
 
                     function renderStreamPlaceholder(label) {
@@ -154,6 +154,13 @@ export const WEBVIEW_SCRIPT_STREAM = `
                         }
 
                         activeStreamState.targetThought = String(thoughtText);
+
+                        applyThinkingSummary(
+                            activeStreamElements.details,
+                            activeStreamElements.summary,
+                            activeStreamState.targetThought,
+                            activeStreamState.targetSegments || [],
+                        );
 
                         if (activeStreamState.phase !== 'answering' && segments.length === 0) {
                             scheduleThinkingTyping();

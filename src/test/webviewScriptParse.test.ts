@@ -55,7 +55,22 @@ suite('webviewScriptParse', () => {
 
         assert.strictEqual(parts.length, 1);
         assert.strictEqual(parts[0].type, 'text');
-        assert.strictEqual(parts[0].value, 'Thinking\n先分析一下\n再输出结论');
+        assert.strictEqual(parts[0].value, '先分析一下\n再输出结论');
+    });
+
+    test('parseThinkingParts 应过滤 Codex thinking 步骤噪音行', () => {
+        const parseThinkingParts = loadParseThinkingParts();
+        const thought = [
+            'Thinking',
+            '**Planning targeted source inspection**',
+            '保留的思考正文',
+            '**Preparing to inspect core files**',
+        ].join('\n');
+
+        const parts = parseThinkingParts(thought);
+        assert.strictEqual(parts.length, 1);
+        assert.strictEqual(parts[0].type, 'text');
+        assert.strictEqual(parts[0].value, '保留的思考正文');
     });
 
     test('parseThinkingParts 应解析 exec 块', () => {
@@ -93,6 +108,26 @@ suite('webviewScriptParse', () => {
         assert.strictEqual(execPart.value.status, '');
         assert.strictEqual(execPart.value.duration, '');
         assert.strictEqual(execPart.value.output, '');
+    });
+
+    test('parseThinkingParts 应过滤 exec 输出中的 Codex 步骤噪音行', () => {
+        const parseThinkingParts = loadParseThinkingParts();
+        const thought = [
+            'exec bash -c "echo hello"',
+            '**Planning targeted source inspection**',
+            'hello',
+            '**Preparing to inspect core files**',
+            'bash -c "echo hello" succeeded in 120ms:',
+        ].join('\n');
+
+        const parts = parseThinkingParts(thought);
+
+        assert.strictEqual(parts.length, 1);
+        assert.strictEqual(parts[0].type, 'exec');
+
+        const execPart = parts[0] as ExecPart;
+        assert.strictEqual(execPart.value.command, 'echo hello');
+        assert.strictEqual(execPart.value.output, 'hello');
     });
 
     test('parseThinkingParts 应解析 patch 块', () => {

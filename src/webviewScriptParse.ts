@@ -38,6 +38,73 @@ export const WEBVIEW_SCRIPT_PARSE = `
                         return isExecStart(trimmed) || isPatchStart(trimmed);
                     }
 
+                    const CODEX_THINKING_STEP_PREFIXES = [
+                        'planning',
+                        'preparing',
+                        'gathering',
+                        'assessing',
+                        'reviewing',
+                        'identifying',
+                        'locating',
+                        'verifying',
+                        'optimizing',
+                        'crafting',
+                    ];
+
+                    function shouldFilterCodexThinkingNoise() {
+                        const provider = typeof currentProvider === 'string' ? currentProvider : 'codex';
+                        const enabled = typeof codexThinkingNoiseFilterEnabled === 'boolean'
+                            ? codexThinkingNoiseFilterEnabled
+                            : true;
+                        return provider === 'codex' && enabled;
+                    }
+
+                    function normalizeCodexThinkingStepLine(line) {
+                        const trimmed = String(line || '').trim();
+                        if (!trimmed) {
+                            return '';
+                        }
+
+                        const isWrapped = trimmed.startsWith('**') && trimmed.endsWith('**') && trimmed.length > 4;
+                        return (isWrapped ? trimmed.slice(2, -2).trim() : trimmed).toLowerCase();
+                    }
+
+                    function isCodexThinkingStepLine(line) {
+                        const normalized = normalizeCodexThinkingStepLine(line);
+                        if (!normalized) {
+                            return false;
+                        }
+
+                        return CODEX_THINKING_STEP_PREFIXES.some(prefix =>
+                            normalized === prefix || normalized.startsWith(prefix + ' ')
+                        );
+                    }
+
+                    function isCodexThinkingNoiseLine(line) {
+                        if (!shouldFilterCodexThinkingNoise()) {
+                            return false;
+                        }
+
+                        const trimmed = String(line || '').trim();
+                        if (!trimmed) {
+                            return false;
+                        }
+
+                        return trimmed.toLowerCase() === 'thinking' || isCodexThinkingStepLine(trimmed);
+                    }
+
+                    function filterCodexThinkingNoiseText(text) {
+                        const normalizedText = String(text || '').replaceAll(String.fromCharCode(13), '');
+                        if (!shouldFilterCodexThinkingNoise()) {
+                            return normalizedText;
+                        }
+
+                        return normalizedText
+                            .split(String.fromCharCode(10))
+                            .filter(line => !isCodexThinkingNoiseLine(line))
+                            .join(String.fromCharCode(10));
+                    }
+
                     function isThoughtStepLine(line) {
                         const trimmed = line.trim();
                         if (!trimmed) {
@@ -50,7 +117,7 @@ export const WEBVIEW_SCRIPT_PARSE = `
                     }
 
                     function looksLikeThinkingOnly(text) {
-                        const normalized = String(text || '').replaceAll(String.fromCharCode(13), '').trim().toLowerCase();
+                        const normalized = filterCodexThinkingNoiseText(text).trim().toLowerCase();
                         if (!normalized) {
                             return false;
                         }
@@ -283,7 +350,7 @@ export const WEBVIEW_SCRIPT_PARSE = `
                             }
 
                             if (segment.type === 'text' || segment.type === 'error') {
-                                const value = String(segment.value || '').trim();
+                                const value = filterCodexThinkingNoiseText(String(segment.value || '')).trim();
                                 if (value) {
                                     parts.push({ type: 'text', value: value });
                                 }
@@ -332,6 +399,21 @@ export const WEBVIEW_SCRIPT_PARSE = `
                         return parseThinkingParts(fallbackThoughtText);
                     }
 
+                    function countToolUsage(segments, fallbackThoughtText) {
+                        if (Array.isArray(segments) && segments.length > 0) {
+                            const countFromSegments = segments
+                                .filter(segment => segment && segment.phase === 'thinking' && (segment.type === 'exec' || segment.type === 'patch'))
+                                .length;
+
+                            if (countFromSegments > 0) {
+                                return countFromSegments;
+                            }
+                        }
+
+                        const fallbackParts = parseThinkingParts(fallbackThoughtText);
+                        return fallbackParts.filter(part => part && (part.type === 'exec' || part.type === 'patch')).length;
+                    }
+
                     function extractAnswerTextFromSegments(segments) {
                         if (!Array.isArray(segments) || segments.length === 0) {
                             return '';
@@ -357,7 +439,7 @@ export const WEBVIEW_SCRIPT_PARSE = `
                     }
 
                     function parseThinkingParts(thoughtText) {
-                        const normalizedText = String(thoughtText || '').replaceAll(String.fromCharCode(13), '');
+                        const normalizedText = filterCodexThinkingNoiseText(thoughtText);
                         if (!normalizedText.trim()) {
                             return [];
                         }
@@ -380,6 +462,10 @@ export const WEBVIEW_SCRIPT_PARSE = `
 
                             if (!trimmed) {
                                 textBuffer.push(line);
+                                continue;
+                            }
+
+                            if (isCodexThinkingNoiseLine(trimmed)) {
                                 continue;
                             }
 

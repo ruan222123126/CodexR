@@ -36,6 +36,7 @@ type NormalizedInput = {
     provider: ProviderType;
     attachments: AttachmentItem[];
     sessionId?: string;
+    startFromHome?: boolean;
 };
 
 type ChatMessage = {
@@ -44,6 +45,7 @@ type ChatMessage = {
     prompt?: string;
     thought?: string;
     content?: string;
+    segments?: StreamSegment[];
     attachments?: AttachmentItem[];
     createdAt: number;
 };
@@ -80,6 +82,8 @@ type SessionSummary = {
     createdAt: number;
     updatedAt: number;
     messageCount: number;
+    workspacePath: string;
+    previewText: string;
 };
 
 type BackupRecord = {
@@ -98,6 +102,7 @@ export class CodexProvider implements vscode.WebviewViewProvider {
     private static readonly MAX_ATTACHMENT_CHARS_PER_FILE = 12_000;
     private static readonly MAX_ATTACHMENT_CHARS_TOTAL = 50_000;
     private static readonly CONTEXT_RECENT_ROUNDS = 10;
+    private static readonly TITLE_GENERATION_TIMEOUT_MS = 45_000;
 
     private _view?: vscode.WebviewView;
     private _activeChild?: cp.ChildProcess;
@@ -165,18 +170,50 @@ export class CodexProvider implements vscode.WebviewViewProvider {
                 return;
             }
 
+            if (data.type === 'session-provider-update') {
+                this.handleSessionProviderUpdate(data.value);
+                return;
+            }
+
             if (data.type === 'session-rename') {
                 this.handleRenameSession(data.value);
                 return;
             }
 
+            if (data.type === 'session-rename-request') {
+                await this.handleRenameSessionRequest(data.value);
+                return;
+            }
+
             if (data.type === 'session-delete') {
                 this.handleDeleteSession(data.value);
+                return;
+            }
+
+            if (data.type === 'session-delete-request') {
+                await this.handleDeleteSessionRequest(data.value);
+                return;
+            }
+
+            if (data.type === 'session-export') {
+                await this.handleExportSession(data.value);
+            }
+
+            if (data.type === 'session-multi-delete') {
+                await this.handleMultiDeleteSession(data.value);
+                return;
+            }
+
+            if (data.type === 'session-multi-export') {
+                await this.handleMultiExportSession(data.value);
+                return;
             }
         });
 
         this.postToWebview('provider-init', {
             provider: this.getActiveSession()?.provider ?? defaultProvider,
+            showToolUsageIndicator: this.shouldShowToolUsageIndicator(),
+            codexThinkingNoiseFilterEnabled: this.shouldEnableCodexThinkingNoiseFilter(),
         });
 
         this.publishSessionState();
@@ -208,6 +245,18 @@ export class CodexProvider implements vscode.WebviewViewProvider {
     private getParserMode(): ParserMode {
         const configured = vscode.workspace.getConfiguration('codexSidebar').get<string>('parserMode', 'v2');
         return configured === 'legacy' ? 'legacy' : 'v2';
+    }
+
+    private shouldShowToolUsageIndicator(): boolean {
+        return vscode.workspace
+            .getConfiguration('codexSidebar')
+            .get<boolean>('showToolUsageIndicator', true);
+    }
+
+    private shouldEnableCodexThinkingNoiseFilter(): boolean {
+        return vscode.workspace
+            .getConfiguration('codexSidebar')
+            .get<boolean>('codexThinkingNoiseFilterEnabled', true);
     }
 
     private normalizeProvider(value: unknown): ProviderType {
@@ -243,6 +292,7 @@ export class CodexProvider implements vscode.WebviewViewProvider {
             provider?: unknown;
             attachments?: unknown;
             sessionId?: unknown;
+            startFromHome?: unknown;
         };
 
         if (typeof payload.prompt !== 'string') {
@@ -263,6 +313,7 @@ export class CodexProvider implements vscode.WebviewViewProvider {
             provider: this.normalizeProvider(payload.provider),
             attachments: this.normalizeAttachments(payload.attachments),
             sessionId,
+            startFromHome: payload.startFromHome === true,
         };
     }
 
@@ -347,7 +398,7 @@ export class CodexProvider implements vscode.WebviewViewProvider {
     }
 
     private async executePrompt(input: NormalizedInput) {
-        const session = this.resolveTargetSession(input.sessionId, input.provider);
+        const session = this.resolveTargetSession(input.sessionId, input.provider, input.startFromHome === true);
         if (!session) {
             this.emitSessionError('No active session available.');
             return;
@@ -439,10 +490,17 @@ export class CodexProvider implements vscode.WebviewViewProvider {
         let stderrBuffer = '';
         let lastThought = '';
         let lastContent = '';
+        let finalSegments: StreamSegment[] = [];
         let lastSegmentsSnapshot = '';
         let flushTimer: NodeJS.Timeout | undefined;
         let endedByTimeout = false;
         const parserMode = this.getParserMode();
+        const codexThinkingNoiseFilterEnabled = this.shouldEnableCodexThinkingNoiseFilter();
+
+        const parseCodex = (text: string, strictRoleSplit = false) => parseCodexOutput(text, {
+            strictRoleSplit,
+            filterThinkingNoise: codexThinkingNoiseFilterEnabled,
+        });
 
         const claudeAccumulator = createClaudeStreamAccumulator();
         let claudeLastError = '';
@@ -452,6 +510,7 @@ export class CodexProvider implements vscode.WebviewViewProvider {
         let piLastError = '';
 
         const emitStreamUpdate = (thought: string, content: string, segments: StreamSegment[]) => {
+            finalSegments = segments;
             this.postToWebview('stream-update', {
                 requestId,
                 sessionId: session.id,
@@ -463,8 +522,8 @@ export class CodexProvider implements vscode.WebviewViewProvider {
         };
 
         const emitLegacyCodexUpdate = (bufferText: string) => {
-            const strictParsed = this.normalizeStreamResult(parseCodexOutput(bufferText, { strictRoleSplit: true }));
-            const parsed = strictParsed.content ? strictParsed : this.normalizeStreamResult(parseCodexOutput(bufferText));
+            const strictParsed = this.normalizeStreamResult(parseCodex(bufferText, true));
+            const parsed = strictParsed.content ? strictParsed : this.normalizeStreamResult(parseCodex(bufferText));
 
             if (parsed.thought === lastThought && parsed.content === lastContent) {
                 return;
@@ -476,10 +535,10 @@ export class CodexProvider implements vscode.WebviewViewProvider {
         };
 
         const emitSegmentedCodexUpdate = () => {
-            const strictParsed = parseCodexOutput(stdoutBuffer, { strictRoleSplit: true });
-            const parsed = strictParsed.content ? strictParsed : parseCodexOutput(stdoutBuffer);
+            const strictParsed = parseCodex(stdoutBuffer, true);
+            const parsed = strictParsed.content ? strictParsed : parseCodex(stdoutBuffer);
             const stdoutSegments = parsed.segments.map(segment => ({ ...segment, source: 'stdout' as const }));
-            const stderrSegments = this.parseStderrOutput(stderrBuffer);
+            const stderrSegments = this.parseStderrOutput(stderrBuffer, provider, codexThinkingNoiseFilterEnabled);
             const mergedSegments = this.mergeSegments(stdoutSegments, stderrSegments);
             const thought = buildThoughtTextFromSegments(mergedSegments);
             const content = buildAnswerTextFromSegments(mergedSegments);
@@ -506,7 +565,10 @@ export class CodexProvider implements vscode.WebviewViewProvider {
                     claudeLastError = parsed.error;
                 }
 
-                const mergedSegments = this.mergeSegments(parsed.segments, this.parseStderrOutput(stderrBuffer));
+                const mergedSegments = this.mergeSegments(
+                    parsed.segments,
+                    this.parseStderrOutput(stderrBuffer, provider, codexThinkingNoiseFilterEnabled),
+                );
                 const thought = buildThoughtTextFromSegments(mergedSegments);
                 const content = buildAnswerTextFromSegments(mergedSegments) || parsed.content;
                 const snapshot = JSON.stringify(mergedSegments);
@@ -528,7 +590,10 @@ export class CodexProvider implements vscode.WebviewViewProvider {
                     piLastError = parsed.error;
                 }
 
-                const mergedSegments = this.mergeSegments(parsed.segments, this.parseStderrOutput(stderrBuffer));
+                const mergedSegments = this.mergeSegments(
+                    parsed.segments,
+                    this.parseStderrOutput(stderrBuffer, provider, codexThinkingNoiseFilterEnabled),
+                );
                 const thought = buildThoughtTextFromSegments(mergedSegments);
                 const content = buildAnswerTextFromSegments(mergedSegments) || parsed.content;
                 const snapshot = JSON.stringify(mergedSegments);
@@ -674,7 +739,10 @@ export class CodexProvider implements vscode.WebviewViewProvider {
                 }
 
                 if (finalClaude.content !== lastContent) {
-                    const mergedSegments = this.mergeSegments(finalClaude.segments, this.parseStderrOutput(stderrBuffer));
+                    const mergedSegments = this.mergeSegments(
+                        finalClaude.segments,
+                        this.parseStderrOutput(stderrBuffer, provider, codexThinkingNoiseFilterEnabled),
+                    );
                     finalThought = buildThoughtTextFromSegments(mergedSegments);
                     finalContent = buildAnswerTextFromSegments(mergedSegments) || finalClaude.content;
                     emitStreamUpdate(finalThought, finalContent, mergedSegments);
@@ -708,7 +776,10 @@ export class CodexProvider implements vscode.WebviewViewProvider {
                     piLastError = finalPi.error;
                 }
 
-                const mergedSegments = this.mergeSegments(finalPi.segments, this.parseStderrOutput(stderrBuffer));
+                const mergedSegments = this.mergeSegments(
+                    finalPi.segments,
+                    this.parseStderrOutput(stderrBuffer, provider, codexThinkingNoiseFilterEnabled),
+                );
                 const thought = buildThoughtTextFromSegments(mergedSegments);
                 const content = buildAnswerTextFromSegments(mergedSegments) || finalPi.content;
 
@@ -743,8 +814,8 @@ export class CodexProvider implements vscode.WebviewViewProvider {
             } else {
                 if (parserMode === 'legacy') {
                     const legacyBuffer = `${stdoutBuffer}\n${stderrBuffer}`;
-                    const strictParsed = this.normalizeStreamResult(parseCodexOutput(legacyBuffer, { strictRoleSplit: true }));
-                    const parsed = strictParsed.content ? strictParsed : this.normalizeStreamResult(parseCodexOutput(legacyBuffer));
+                    const strictParsed = this.normalizeStreamResult(parseCodex(legacyBuffer, true));
+                    const parsed = strictParsed.content ? strictParsed : this.normalizeStreamResult(parseCodex(legacyBuffer));
 
                     if (parsed.thought !== lastThought || parsed.content !== lastContent) {
                         finalThought = parsed.thought;
@@ -772,11 +843,11 @@ export class CodexProvider implements vscode.WebviewViewProvider {
                         return;
                     }
                 } else {
-                    const strictParsed = parseCodexOutput(stdoutBuffer, { strictRoleSplit: true });
-                    const parsed = strictParsed.content ? strictParsed : parseCodexOutput(stdoutBuffer);
+                    const strictParsed = parseCodex(stdoutBuffer, true);
+                    const parsed = strictParsed.content ? strictParsed : parseCodex(stdoutBuffer);
                     const mergedSegments = this.mergeSegments(
                         parsed.segments.map(segment => ({ ...segment, source: 'stdout' as const })),
-                        this.parseStderrOutput(stderrBuffer),
+                        this.parseStderrOutput(stderrBuffer, provider, codexThinkingNoiseFilterEnabled),
                     );
                     const thought = buildThoughtTextFromSegments(mergedSegments);
                     const content = buildAnswerTextFromSegments(mergedSegments);
@@ -823,7 +894,7 @@ export class CodexProvider implements vscode.WebviewViewProvider {
             }
 
             session.needsBootstrapContext = false;
-            this.appendAssistantMessage(session, finalThought, finalContent);
+            this.appendAssistantMessage(session, finalThought, finalContent, finalSegments);
             this.persistSessionStore();
 
             this.postToWebview('stream-end', {
@@ -833,6 +904,10 @@ export class CodexProvider implements vscode.WebviewViewProvider {
             });
             this.postToWebview('done', '');
             this.publishSessionState();
+
+            if (this.shouldAutoGenerateSessionTitle(session)) {
+                void this.maybeAutoGenerateSessionTitle(session, workspaceDir);
+            }
         });
     }
 
@@ -844,7 +919,7 @@ export class CodexProvider implements vscode.WebviewViewProvider {
         return Boolean(session.needsBootstrapContext);
     }
 
-    private parseStderrOutput(stderrText: string): StreamSegment[] {
+    private parseStderrOutput(stderrText: string, provider: ProviderType, filterThinkingNoise: boolean): StreamSegment[] {
         const cleaned = stderrText
             .replace(/\x1b\[[0-9;]*m/g, '')
             .replace(/\r/g, '')
@@ -858,6 +933,7 @@ export class CodexProvider implements vscode.WebviewViewProvider {
             .split('\n')
             .map(line => line.trim())
             .filter(Boolean)
+            .filter(line => !(provider === 'codex' && filterThinkingNoise && this.isCodexThinkingNoiseLine(line)))
             .map((line, index) => {
                 const lower = line.toLowerCase();
                 const isError =
@@ -885,6 +961,36 @@ export class CodexProvider implements vscode.WebviewViewProvider {
                     seq: index,
                 };
             });
+    }
+
+    private isCodexThinkingNoiseLine(line: string): boolean {
+        const trimmed = line.trim();
+        if (!trimmed) {
+            return false;
+        }
+
+        const lower = trimmed.toLowerCase();
+        if (lower === 'thinking') {
+            return true;
+        }
+
+        const isWrapped = trimmed.startsWith('**') && trimmed.endsWith('**') && trimmed.length > 4;
+        const normalized = (isWrapped ? trimmed.slice(2, -2).trim() : trimmed).toLowerCase();
+
+        const prefixes = [
+            'planning',
+            'preparing',
+            'gathering',
+            'assessing',
+            'reviewing',
+            'identifying',
+            'locating',
+            'verifying',
+            'optimizing',
+            'crafting',
+        ];
+
+        return prefixes.some(prefix => normalized === prefix || normalized.startsWith(prefix + ' '));
     }
 
     private mergeSegments(primary: StreamSegment[], secondary: StreamSegment[]): StreamSegment[] {
@@ -926,7 +1032,19 @@ export class CodexProvider implements vscode.WebviewViewProvider {
         return segments;
     }
 
-    private resolveTargetSession(sessionId: string | undefined, fallbackProvider: ProviderType): ChatSession | undefined {
+    private resolveTargetSession(
+        sessionId: string | undefined,
+        fallbackProvider: ProviderType,
+        startFromHome = false,
+    ): ChatSession | undefined {
+        if (startFromHome) {
+            const created = this.createSession(fallbackProvider);
+            this._sessions.push(created);
+            this._activeSessionId = created.id;
+            this.persistSessionStore();
+            return created;
+        }
+
         if (sessionId) {
             const found = this._sessions.find(item => item.id === sessionId);
             if (found) {
@@ -987,6 +1105,42 @@ export class CodexProvider implements vscode.WebviewViewProvider {
         this.publishSessionState();
     }
 
+    private handleSessionProviderUpdate(value: unknown) {
+        const payload = this.asRecord(value);
+        const sessionId = typeof payload?.sessionId === 'string' ? payload.sessionId.trim() : '';
+        if (!sessionId) {
+            return;
+        }
+
+        const session = this._sessions.find(item => item.id === sessionId);
+        if (!session) {
+            this.emitSessionError('Session not found.');
+            return;
+        }
+
+        const provider = this.normalizeProvider(payload?.provider);
+        if (session.provider === provider) {
+            return;
+        }
+
+        this.applySessionProvider(session, provider);
+        this.persistSessionStore();
+        this.publishSessionState();
+    }
+
+    private applySessionProvider(session: ChatSession, provider: ProviderType) {
+        session.provider = provider;
+        session.updatedAt = Date.now();
+        session.needsBootstrapContext = true;
+
+        if (provider === 'codex') {
+            session.backendSessionId = undefined;
+            return;
+        }
+
+        session.backendSessionId = this.createId();
+    }
+
     private handleRenameSession(value: unknown) {
         const payload = this.asRecord(value);
         const sessionId = typeof payload?.sessionId === 'string' ? payload.sessionId.trim() : '';
@@ -1008,6 +1162,38 @@ export class CodexProvider implements vscode.WebviewViewProvider {
 
         this.persistSessionStore();
         this.publishSessionState();
+    }
+
+    private async handleRenameSessionRequest(value: unknown): Promise<void> {
+        const payload = this.asRecord(value);
+        const sessionId = typeof payload?.sessionId === 'string' ? payload.sessionId.trim() : '';
+        if (!sessionId) {
+            return;
+        }
+
+        const session = this._sessions.find(item => item.id === sessionId);
+        if (!session) {
+            this.emitSessionError('Session not found.');
+            return;
+        }
+
+        const currentTitle = typeof payload?.currentTitle === 'string' ? payload.currentTitle.trim() : '';
+        const nextTitle = await vscode.window.showInputBox({
+            title: 'Rename Session',
+            prompt: 'Enter a new title for this session',
+            value: currentTitle || session.title,
+            ignoreFocusOut: true,
+            validateInput: input => input.trim() ? undefined : 'Session title cannot be empty.',
+        });
+
+        if (typeof nextTitle !== 'string') {
+            return;
+        }
+
+        this.handleRenameSession({
+            sessionId,
+            title: nextTitle,
+        });
     }
 
     private handleDeleteSession(value: unknown) {
@@ -1042,6 +1228,186 @@ export class CodexProvider implements vscode.WebviewViewProvider {
         this.publishSessionState();
     }
 
+    private async handleDeleteSessionRequest(value: unknown): Promise<void> {
+        const payload = this.asRecord(value);
+        const sessionId = typeof payload?.sessionId === 'string' ? payload.sessionId.trim() : '';
+        if (!sessionId) {
+            return;
+        }
+
+        const session = this._sessions.find(item => item.id === sessionId);
+        if (!session) {
+            this.emitSessionError('Session not found.');
+            return;
+        }
+
+        const title = (typeof payload?.title === 'string' && payload.title.trim())
+            ? payload.title.trim()
+            : session.title;
+
+        const confirmed = await vscode.window.showWarningMessage(
+            `Delete session "${title}"?`,
+            { modal: true },
+            'Delete',
+        );
+
+        if (confirmed !== 'Delete') {
+            return;
+        }
+
+        this.handleDeleteSession({ sessionId });
+    }
+
+    private async handleExportSession(value: unknown) {
+        const payload = this.asRecord(value);
+        const sessionId = typeof payload?.sessionId === 'string' ? payload.sessionId.trim() : '';
+        if (!sessionId) {
+            return;
+        }
+
+        const session = this._sessions.find(item => item.id === sessionId);
+        if (!session) {
+            this.emitSessionError('Session not found.');
+            return;
+        }
+
+        const suggestedFileName = `${this.sanitizeFileName(session.title || 'session')}-${this.buildTimestampLabel()}.json`;
+        const defaultUri = vscode.workspace.workspaceFolders?.[0]
+            ? vscode.Uri.joinPath(vscode.workspace.workspaceFolders[0].uri, suggestedFileName)
+            : vscode.Uri.file(path.join(os.homedir(), suggestedFileName));
+
+        const targetUri = await vscode.window.showSaveDialog({
+            title: 'Export Session',
+            defaultUri,
+            filters: {
+                'JSON': ['json'],
+            },
+        });
+
+        if (!targetUri) {
+            return;
+        }
+
+        const payloadText = JSON.stringify({
+            version: 1,
+            exportedAt: new Date().toISOString(),
+            session,
+        }, null, 2);
+
+        try {
+            await fs.promises.writeFile(targetUri.fsPath, payloadText, 'utf8');
+            void vscode.window.showInformationMessage('Session exported successfully.');
+        } catch {
+            this.emitSessionError('Failed to export session.');
+        }
+    }
+
+    private async handleMultiDeleteSession(value: unknown) {
+        const payload = this.asRecord(value);
+        const sessionIds = Array.isArray(payload?.sessionIds) ? payload.sessionIds : [];
+
+        if (sessionIds.length === 0) {
+            return;
+        }
+
+        const validSessionIds = sessionIds
+            .filter(id => typeof id === 'string' && id.trim())
+            .map(id => id.trim());
+
+        if (validSessionIds.length === 0) {
+            return;
+        }
+
+        const confirmed = await vscode.window.showWarningMessage(
+            `Delete ${validSessionIds.length} session${validSessionIds.length > 1 ? 's' : ''}?`,
+            { modal: true },
+            'Delete',
+        );
+
+        if (confirmed !== 'Delete') {
+            return;
+        }
+
+        // Cancel execution if any selected session is active
+        if (validSessionIds.includes(this._activeSessionId)) {
+            this.cancelExecution();
+        }
+
+        // Remove all selected sessions
+        this._sessions = this._sessions.filter(item => !validSessionIds.includes(item.id));
+
+        // Handle empty sessions or active session removal
+        if (this._sessions.length === 0) {
+            const created = this.createSession(this.getDefaultProvider());
+            this._sessions.push(created);
+            this._activeSessionId = created.id;
+        } else if (!this._sessions.some(item => item.id === this._activeSessionId)) {
+            this._activeSessionId = this._sessions[0].id;
+        }
+
+        this.persistSessionStore();
+        this.publishSessionState();
+        void vscode.window.showInformationMessage(`${validSessionIds.length} session${validSessionIds.length > 1 ? 's' : ''} deleted.`);
+    }
+
+    private async handleMultiExportSession(value: unknown) {
+        const payload = this.asRecord(value);
+        const sessionIds = Array.isArray(payload?.sessionIds) ? payload.sessionIds : [];
+
+        if (sessionIds.length === 0) {
+            return;
+        }
+
+        const validSessionIds = sessionIds
+            .filter(id => typeof id === 'string' && id.trim())
+            .map(id => id.trim());
+
+        if (validSessionIds.length === 0) {
+            return;
+        }
+
+        const sessionsToExport = this._sessions.filter(item => validSessionIds.includes(item.id));
+
+        if (sessionsToExport.length === 0) {
+            this.emitSessionError('No sessions found to export.');
+            return;
+        }
+
+        const defaultFileName = sessionsToExport.length === 1
+            ? `${this.sanitizeFileName(sessionsToExport[0].title || 'session')}-${this.buildTimestampLabel()}.json`
+            : `sessions-export-${this.buildTimestampLabel()}.json`;
+
+        const defaultUri = vscode.workspace.workspaceFolders?.[0]
+            ? vscode.Uri.joinPath(vscode.workspace.workspaceFolders[0].uri, defaultFileName)
+            : vscode.Uri.file(path.join(os.homedir(), defaultFileName));
+
+        const targetUri = await vscode.window.showSaveDialog({
+            title: sessionsToExport.length === 1 ? 'Export Session' : 'Export Sessions',
+            defaultUri,
+            filters: {
+                'JSON': ['json'],
+            },
+        });
+
+        if (!targetUri) {
+            return;
+        }
+
+        const payloadText = JSON.stringify({
+            version: 1,
+            exportedAt: new Date().toISOString(),
+            count: sessionsToExport.length,
+            sessions: sessionsToExport,
+        }, null, 2);
+
+        try {
+            await fs.promises.writeFile(targetUri.fsPath, payloadText, 'utf8');
+            void vscode.window.showInformationMessage(`${sessionsToExport.length} session${sessionsToExport.length > 1 ? 's' : ''} exported successfully.`);
+        } catch {
+            this.emitSessionError('Failed to export sessions.');
+        }
+    }
+
     private emitSessionError(message: string) {
         this.postToWebview('session-error', { message });
     }
@@ -1059,12 +1425,13 @@ export class CodexProvider implements vscode.WebviewViewProvider {
         session.updatedAt = Date.now();
     }
 
-    private appendAssistantMessage(session: ChatSession, thought: string, content: string) {
+    private appendAssistantMessage(session: ChatSession, thought: string, content: string, segments?: StreamSegment[]) {
         const message: ChatMessage = {
             id: this.createId(),
             role: 'assistant',
             thought: thought || undefined,
             content: content || undefined,
+            segments: Array.isArray(segments) && segments.length > 0 ? segments : undefined,
             createdAt: Date.now(),
         };
 
@@ -1125,6 +1492,8 @@ export class CodexProvider implements vscode.WebviewViewProvider {
                 createdAt: session.createdAt,
                 updatedAt: session.updatedAt,
                 messageCount: session.messages.length,
+                workspacePath: this.buildSessionWorkspacePath(session),
+                previewText: this.buildSessionPreviewText(session),
             }))
             .sort((left, right) => right.updatedAt - left.updatedAt);
 
@@ -1146,6 +1515,48 @@ export class CodexProvider implements vscode.WebviewViewProvider {
                 }
                 : null,
         });
+    }
+
+    private buildSessionWorkspacePath(session: ChatSession): string {
+        for (let index = session.messages.length - 1; index >= 0; index -= 1) {
+            const message = session.messages[index];
+            if (!message || !Array.isArray(message.attachments)) {
+                continue;
+            }
+
+            const attachment = message.attachments.find(item => typeof item?.path === 'string' && item.path.trim());
+            if (attachment?.path) {
+                return attachment.path;
+            }
+        }
+
+        const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        return workspacePath ?? '';
+    }
+
+    private buildSessionPreviewText(session: ChatSession): string {
+        for (let index = session.messages.length - 1; index >= 0; index -= 1) {
+            const message = session.messages[index];
+            if (!message) {
+                continue;
+            }
+
+            if (message.role === 'user' && message.prompt) {
+                const prompt = message.prompt.trim();
+                if (prompt) {
+                    return prompt;
+                }
+            }
+
+            if (message.role === 'assistant' && message.content) {
+                const content = message.content.trim();
+                if (content) {
+                    return content;
+                }
+            }
+        }
+
+        return '';
     }
 
     private normalizeStreamResult(result: { thought: string; content: string }): { thought: string; content: string } {
@@ -1224,6 +1635,11 @@ export class CodexProvider implements vscode.WebviewViewProvider {
                 versionArgs: ['--version'],
                 usesNativeSession: true,
             };
+        }
+
+        if (!this.shouldAutoResumeCodexSession() && session.backendSessionId) {
+            session.backendSessionId = undefined;
+            session.needsBootstrapContext = true;
         }
 
         if (session.backendSessionId) {
@@ -1315,6 +1731,12 @@ export class CodexProvider implements vscode.WebviewViewProvider {
             .get<boolean>('codexEnforceCheckpointPolicy', true);
     }
 
+    private shouldAutoResumeCodexSession(): boolean {
+        return vscode.workspace
+            .getConfiguration('codexSidebar')
+            .get<boolean>('codexAutoResumeSession', true);
+    }
+
     private injectCodexCheckpointPolicy(prompt: string): string {
         if (!this.shouldEnforceCodexCheckpoint()) {
             return prompt;
@@ -1378,25 +1800,16 @@ export class CodexProvider implements vscode.WebviewViewProvider {
         const chunks: string[] = [];
 
         for (const attachment of attachments.slice(0, CodexProvider.MAX_ATTACHMENT_COUNT)) {
-            const fileContent = this.readAttachmentContent(attachment.path);
-            const languageHint = this.detectLanguageFromPath(attachment.path);
-            let text = fileContent;
-            let truncated = false;
-
-            if (text.length > CodexProvider.MAX_ATTACHMENT_CHARS_PER_FILE) {
-                text = text.slice(0, CodexProvider.MAX_ATTACHMENT_CHARS_PER_FILE);
-                truncated = true;
-            }
-
             const remain = CodexProvider.MAX_ATTACHMENT_CHARS_TOTAL - totalChars;
             if (remain <= 0) {
                 break;
             }
 
-            if (text.length > remain) {
-                text = text.slice(0, remain);
-                truncated = true;
-            }
+            const perFileBudget = Math.min(CodexProvider.MAX_ATTACHMENT_CHARS_PER_FILE, remain);
+            const contentResult = this.readAttachmentContent(attachment.path, perFileBudget);
+            const languageHint = this.detectLanguageFromPath(attachment.path);
+            const text = contentResult.text;
+            const truncated = contentResult.truncated;
 
             totalChars += text.length;
 
@@ -1426,20 +1839,72 @@ export class CodexProvider implements vscode.WebviewViewProvider {
         ].join('\n');
     }
 
-    private readAttachmentContent(filePath: string): string {
+    private readAttachmentContent(filePath: string, maxChars: number): { text: string; truncated: boolean } {
+        const safeMaxChars = Number.isFinite(maxChars) ? Math.floor(maxChars) : 0;
+        if (safeMaxChars <= 0) {
+            return { text: '', truncated: true };
+        }
+
+        let fd: number | undefined;
         try {
-            const buffer = fs.readFileSync(filePath);
-            if (buffer.length === 0) {
-                return '[Empty file]';
+            fd = fs.openSync(filePath, 'r');
+
+            const sampleBuffer = Buffer.alloc(4096);
+            const sampleBytes = fs.readSync(fd, sampleBuffer, 0, sampleBuffer.length, 0);
+            if (sampleBytes <= 0) {
+                return { text: '[Empty file]', truncated: false };
             }
 
-            if (this.isProbablyBinary(buffer)) {
-                return '[Binary file omitted]';
+            const sample = sampleBytes === sampleBuffer.length
+                ? sampleBuffer
+                : sampleBuffer.subarray(0, sampleBytes);
+            if (this.isProbablyBinary(sample)) {
+                return { text: '[Binary file omitted]', truncated: false };
             }
 
-            return buffer.toString('utf8');
+            const byteLimit = Math.max(4, safeMaxChars * 4 + 4);
+            const initialBytes = Math.min(sample.length, byteLimit);
+            const chunks: Buffer[] = [sample.subarray(0, initialBytes)];
+            let keptBytes = initialBytes;
+            let position = sample.length;
+
+            while (keptBytes < byteLimit) {
+                const readSize = Math.min(8192, byteLimit - keptBytes);
+                const chunk = Buffer.alloc(readSize);
+                const bytesRead = fs.readSync(fd, chunk, 0, readSize, position);
+                if (bytesRead <= 0) {
+                    break;
+                }
+
+                chunks.push(bytesRead === readSize ? chunk : chunk.subarray(0, bytesRead));
+                keptBytes += bytesRead;
+                position += bytesRead;
+            }
+
+            const rawText = Buffer.concat(chunks, keptBytes).toString('utf8');
+            const fileSize = fs.fstatSync(fd).size;
+            const truncatedByByteLimit = fileSize > keptBytes;
+
+            if (rawText.length > safeMaxChars) {
+                return {
+                    text: rawText.slice(0, safeMaxChars),
+                    truncated: true,
+                };
+            }
+
+            return {
+                text: rawText,
+                truncated: truncatedByByteLimit,
+            };
         } catch {
-            return '[Failed to read file]';
+            return { text: '[Failed to read file]', truncated: false };
+        } finally {
+            if (fd !== undefined) {
+                try {
+                    fs.closeSync(fd);
+                } catch {
+                }
+            }
         }
     }
 
@@ -1542,6 +2007,207 @@ export class CodexProvider implements vscode.WebviewViewProvider {
         }
 
         return 'No response from Pi.';
+    }
+
+    private shouldAutoGenerateSessionTitle(session: ChatSession): boolean {
+        if (!this.isDefaultSessionTitle(session.title)) {
+            return false;
+        }
+
+        const dialog = session.messages.filter(item => item.role === 'user' || item.role === 'assistant');
+        if (dialog.length !== 2) {
+            return false;
+        }
+
+        return dialog[0]?.role === 'user' && dialog[1]?.role === 'assistant';
+    }
+
+    private isDefaultSessionTitle(title: string): boolean {
+        return /^新会话\s\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}$/.test(String(title || '').trim());
+    }
+
+    private async maybeAutoGenerateSessionTitle(session: ChatSession, cwd: string): Promise<void> {
+        if (!this.shouldAutoGenerateSessionTitle(session)) {
+            return;
+        }
+
+        const firstRound = this.getFirstRoundDialog(session);
+        if (!firstRound) {
+            return;
+        }
+
+        const generatedTitle = await this.generateTitleWithCodex(firstRound.userPrompt, firstRound.assistantText, cwd);
+        if (!generatedTitle) {
+            return;
+        }
+
+        if (!this.shouldAutoGenerateSessionTitle(session)) {
+            return;
+        }
+
+        session.title = generatedTitle;
+        session.updatedAt = Date.now();
+        this.persistSessionStore();
+        this.publishSessionState();
+    }
+
+    private getFirstRoundDialog(session: ChatSession): { userPrompt: string; assistantText: string } | null {
+        const dialog = session.messages.filter(item => item.role === 'user' || item.role === 'assistant');
+        if (dialog.length < 2) {
+            return null;
+        }
+
+        const user = dialog.find(item => item.role === 'user');
+        const assistant = dialog.find(item => item.role === 'assistant');
+        if (!user || !assistant) {
+            return null;
+        }
+
+        const userPrompt = String(user.prompt || '').trim();
+        const assistantText = String(assistant.content || assistant.thought || '').trim();
+        if (!userPrompt || !assistantText) {
+            return null;
+        }
+
+        return { userPrompt, assistantText };
+    }
+
+    private async generateTitleWithCodex(userPrompt: string, assistantText: string, cwd: string): Promise<string | undefined> {
+        if (!this.isCommandAvailable('codex', ['--version'], cwd)) {
+            return undefined;
+        }
+
+        const prompt = [
+            'You generate concise chat session titles.',
+            'Return only one short title line.',
+            'Rules:',
+            '- No markdown, no quotes, no prefix labels.',
+            '- Prefer <= 24 characters.',
+            '- Keep language aligned with the user request.',
+            '',
+            'User message:',
+            userPrompt,
+            '',
+            'Assistant reply:',
+            assistantText.slice(0, 1200),
+        ].join('\n');
+
+        const raw = await this.runCommandWithStdin(
+            'codex',
+            [
+                'exec',
+                '--dangerously-bypass-approvals-and-sandbox',
+                '--skip-git-repo-check',
+            ],
+            prompt,
+            cwd,
+            CodexProvider.TITLE_GENERATION_TIMEOUT_MS,
+        );
+
+        if (!raw) {
+            return undefined;
+        }
+
+        const parsed = parseCodexOutput(raw);
+        const fromParsed = this.normalizeGeneratedTitle(parsed.content);
+        if (fromParsed) {
+            return fromParsed;
+        }
+
+        return this.normalizeGeneratedTitle(raw);
+    }
+
+    private normalizeGeneratedTitle(raw: string): string | undefined {
+        const lines = String(raw || '')
+            .replace(/\x1b\[[0-9;]*m/g, '')
+            .replace(/\r/g, '')
+            .split('\n')
+            .map(line => line.trim())
+            .filter(Boolean)
+            .filter(line => !/^session\s+id\s*:/i.test(line))
+            .filter(line => !/^workdir\s*:/i.test(line))
+            .filter(line => !/^model\s*:/i.test(line))
+            .filter(line => !/^approval\s*:/i.test(line))
+            .filter(line => !/^sandbox\s*:/i.test(line));
+
+        if (lines.length === 0) {
+            return undefined;
+        }
+
+        const firstLine = lines[0]
+            .replace(/^[-*\d.\s]+/, '')
+            .replace(/^['"`]+/, '')
+            .replace(/['"`]+$/, '')
+            .trim();
+
+        if (!firstLine) {
+            return undefined;
+        }
+
+        const compact = firstLine.replace(/\s+/g, ' ');
+        return compact.slice(0, 48);
+    }
+
+    private runCommandWithStdin(
+        command: string,
+        args: string[],
+        stdinText: string,
+        cwd: string,
+        timeoutMs: number,
+    ): Promise<string | undefined> {
+        return new Promise(resolve => {
+            const child = cp.spawn(command, args, {
+                shell: true,
+                cwd,
+                env: { ...process.env, LANG: 'en_US.UTF-8', LC_ALL: 'en_US.UTF-8' },
+            });
+
+            let stdout = '';
+            let stderr = '';
+            let resolved = false;
+
+            const finish = (value: string | undefined) => {
+                if (resolved) {
+                    return;
+                }
+                resolved = true;
+                resolve(value);
+            };
+
+            const timer = setTimeout(() => {
+                child.kill();
+                finish(undefined);
+            }, timeoutMs);
+
+            child.stdout?.on('data', chunk => {
+                stdout += String(chunk ?? '');
+            });
+
+            child.stderr?.on('data', chunk => {
+                stderr += String(chunk ?? '');
+            });
+
+            child.on('error', () => {
+                clearTimeout(timer);
+                finish(undefined);
+            });
+
+            child.on('close', code => {
+                clearTimeout(timer);
+                if (code !== 0) {
+                    finish(undefined);
+                    return;
+                }
+
+                const merged = `${stdout}\n${stderr}`.trim();
+                finish(merged || undefined);
+            });
+
+            if (child.stdin) {
+                child.stdin.write(stdinText + '\n');
+                child.stdin.end();
+            }
+        });
     }
 
     private buildStorageKey(): string {
@@ -1703,8 +2369,102 @@ export class CodexProvider implements vscode.WebviewViewProvider {
             prompt: typeof value.prompt === 'string' ? value.prompt : undefined,
             thought: typeof value.thought === 'string' ? value.thought : undefined,
             content: typeof value.content === 'string' ? value.content : undefined,
+            segments: this.normalizeMessageSegments(value.segments),
             attachments: attachments.length > 0 ? attachments : undefined,
             createdAt,
+        };
+    }
+
+    private normalizeMessageSegments(raw: unknown): StreamSegment[] | undefined {
+        if (!Array.isArray(raw)) {
+            return undefined;
+        }
+
+        const segments = raw
+            .map(item => this.normalizeStreamSegment(item))
+            .filter((item): item is StreamSegment => Boolean(item));
+
+        return segments.length > 0 ? segments : undefined;
+    }
+
+    private normalizeStreamSegment(raw: unknown): StreamSegment | null {
+        const value = this.asRecord(raw);
+        if (!value) {
+            return null;
+        }
+
+        const seq = typeof value.seq === 'number' ? value.seq : 0;
+        const phase = value.phase === 'thinking' || value.phase === 'answer' ? value.phase : undefined;
+        const source = value.source === 'stdout' || value.source === 'stderr' || value.source === 'mixed'
+            ? value.source
+            : undefined;
+        const type = value.type === 'text' || value.type === 'error' || value.type === 'exec' || value.type === 'patch'
+            ? value.type
+            : undefined;
+
+        if (!phase || !source || !type) {
+            return null;
+        }
+
+        if (type === 'text' || type === 'error') {
+            if (typeof value.value !== 'string') {
+                return null;
+            }
+
+            return {
+                type,
+                value: value.value,
+                phase,
+                source,
+                seq,
+            };
+        }
+
+        if (type === 'exec') {
+            const execValue = this.asRecord(value.value);
+            if (!execValue) {
+                return null;
+            }
+
+            return {
+                type,
+                value: {
+                    runnerLabel: typeof execValue.runnerLabel === 'string' ? execValue.runnerLabel : 'Command',
+                    command: typeof execValue.command === 'string' ? execValue.command : '(empty command)',
+                    cwd: typeof execValue.cwd === 'string' ? execValue.cwd : '',
+                    status: typeof execValue.status === 'string' ? execValue.status : '',
+                    duration: typeof execValue.duration === 'string' ? execValue.duration : '',
+                    exitCode: typeof execValue.exitCode === 'string' ? execValue.exitCode : '',
+                    output: typeof execValue.output === 'string' ? execValue.output : '',
+                },
+                phase,
+                source,
+                seq,
+            };
+        }
+
+        const patchValue = this.asRecord(value.value);
+        if (!patchValue) {
+            return null;
+        }
+
+        return {
+            type,
+            value: {
+                added: typeof patchValue.added === 'number' ? patchValue.added : 0,
+                updated: typeof patchValue.updated === 'number' ? patchValue.updated : 0,
+                deleted: typeof patchValue.deleted === 'number' ? patchValue.deleted : 0,
+                moved: typeof patchValue.moved === 'number' ? patchValue.moved : 0,
+                hunks: typeof patchValue.hunks === 'number' ? patchValue.hunks : 0,
+                additions: typeof patchValue.additions === 'number' ? patchValue.additions : 0,
+                deletions: typeof patchValue.deletions === 'number' ? patchValue.deletions : 0,
+                files: Array.isArray(patchValue.files)
+                    ? patchValue.files.map(item => String(item))
+                    : [],
+            },
+            phase,
+            source,
+            seq,
         };
     }
 
@@ -1727,6 +2487,25 @@ export class CodexProvider implements vscode.WebviewViewProvider {
         }
 
         return value as Record<string, unknown>;
+    }
+
+    private sanitizeFileName(raw: string): string {
+        const normalized = String(raw || '').trim() || 'session';
+        return normalized
+            .replace(/[\\/:*?"<>|]/g, '_')
+            .replace(/\s+/g, '_')
+            .replace(/_+/g, '_')
+            .slice(0, 64) || 'session';
+    }
+
+    private buildTimestampLabel(): string {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        return `${year}${month}${day}-${hours}${minutes}`;
     }
 
     private createId(): string {

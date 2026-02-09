@@ -8,7 +8,10 @@ import {
     type StreamSegmentSource,
 } from './streamTypes';
 
-type ParseOptions = { strictRoleSplit?: boolean };
+type ParseOptions = {
+    strictRoleSplit?: boolean;
+    filterThinkingNoise?: boolean;
+};
 
 type ParsedResult = {
     thought: string;
@@ -30,9 +33,24 @@ type TextBuffer = {
 type ParseState = {
     phase: StreamPhase;
     seq: number;
+    sawAnswerRole: boolean;
+    sawThinkingHeading: boolean;
     segments: StreamSegment[];
     textBuffer: TextBuffer;
 };
+
+const CODEX_THINKING_STEP_PREFIXES = [
+    'planning',
+    'preparing',
+    'gathering',
+    'assessing',
+    'reviewing',
+    'identifying',
+    'locating',
+    'verifying',
+    'optimizing',
+    'crafting',
+];
 
 export function extractCodexSessionId(raw: string): string | undefined {
     const text = stripAnsi(raw).replace(/\r/g, '');
@@ -69,11 +87,11 @@ export function parseCodexOutput(raw: string, options?: ParseOptions): ParsedRes
     const normalized = normalizeRawCodexText(raw);
     const lines = normalized.split('\n');
     const state = createParseState();
+    const filterThinkingNoise = shouldFilterThinkingNoise(options);
 
     for (let index = 0; index < lines.length; index++) {
         const line = lines[index];
         const trimmed = line.trim();
-        const lower = trimmed.toLowerCase();
 
         if (!trimmed) {
             pushTextLine(state, line);
@@ -84,13 +102,22 @@ export function parseCodexOutput(raw: string, options?: ParseOptions): ParsedRes
             continue;
         }
 
+        if (filterThinkingNoise && !state.sawAnswerRole && isCodexThinkingNoiseLine(trimmed)) {
+            if (isThinkingHeading(trimmed)) {
+                state.sawThinkingHeading = true;
+            }
+            continue;
+        }
+
         if (isAnswerRoleLine(line, options)) {
             flushTextBuffer(state);
+            state.sawAnswerRole = true;
             state.phase = 'answer';
             continue;
         }
 
         if (state.phase === 'thinking' && isThinkingHeading(trimmed)) {
+            state.sawThinkingHeading = true;
             continue;
         }
 
@@ -121,6 +148,8 @@ export function parseCodexOutput(raw: string, options?: ParseOptions): ParsedRes
 
     flushTextBuffer(state);
 
+    applyAnswerFallbackIfNeeded(state);
+
     const thought = buildThoughtTextFromSegments(state.segments);
     const content = buildAnswerTextFromSegments(state.segments);
 
@@ -133,11 +162,13 @@ export function parseCodexOutput(raw: string, options?: ParseOptions): ParsedRes
 
 function createParseState(): ParseState {
     return {
-        phase: 'thinking',
+        phase: 'answer',
         seq: 0,
+        sawAnswerRole: false,
+        sawThinkingHeading: false,
         segments: [],
         textBuffer: {
-            phase: 'thinking',
+            phase: 'answer',
             source: 'stdout',
             lines: [],
         },
@@ -195,19 +226,61 @@ function isMetadataLine(line: string): boolean {
 }
 
 function isAnswerRoleLine(line: string, options?: ParseOptions): boolean {
-    if (!/^\s*codex\s*:?\s*$/i.test(line)) {
+    if (!isRoleLabelLine(line)) {
         return false;
     }
 
     if (options?.strictRoleSplit) {
-        return true;
+        return /^\s*codex\s*:?\s*$/i.test(line);
     }
 
     return true;
 }
 
+function isRoleLabelLine(line: string): boolean {
+    return /^\s*(codex|assistant|final|answer)\s*:?\s*$/i.test(line);
+}
+
 function isThinkingHeading(line: string): boolean {
     return line.toLowerCase() === 'thinking';
+}
+
+function shouldFilterThinkingNoise(options?: ParseOptions): boolean {
+    return options?.filterThinkingNoise !== false;
+}
+
+function normalizeCodexThinkingStepLine(line: string): string {
+    const trimmed = line.trim();
+    if (!trimmed) {
+        return '';
+    }
+
+    const isWrapped = trimmed.startsWith('**') && trimmed.endsWith('**') && trimmed.length > 4;
+    const text = isWrapped
+        ? trimmed.slice(2, -2).trim()
+        : trimmed;
+
+    return text.toLowerCase();
+}
+
+function isCodexThinkingStepLine(line: string): boolean {
+    const normalized = normalizeCodexThinkingStepLine(line);
+    if (!normalized) {
+        return false;
+    }
+
+    return CODEX_THINKING_STEP_PREFIXES.some(prefix =>
+        normalized === prefix || normalized.startsWith(prefix + ' ')
+    );
+}
+
+function isCodexThinkingNoiseLine(line: string): boolean {
+    const trimmed = line.trim();
+    if (!trimmed) {
+        return false;
+    }
+
+    return isThinkingHeading(trimmed) || isCodexThinkingStepLine(trimmed);
 }
 
 function isExecStart(line: string): boolean {
@@ -259,6 +332,58 @@ function flushTextBuffer(state: ParseState): void {
     }
 
     state.segments.push(makeTextSegment(state, value, state.textBuffer.phase, state.textBuffer.source));
+}
+
+function applyAnswerFallbackIfNeeded(state: ParseState): void {
+    if (state.sawAnswerRole || !state.sawThinkingHeading) {
+        return;
+    }
+
+    const hasStructuredThinking = state.segments.some(segment =>
+        segment.phase === 'thinking' && (segment.type === 'exec' || segment.type === 'patch')
+    );
+    if (hasStructuredThinking) {
+        return;
+    }
+
+    const thinkingTextSegments = state.segments.filter((segment): segment is Extract<StreamSegment, { type: 'text' }> =>
+        segment.type === 'text' && segment.phase === 'thinking'
+    );
+    if (thinkingTextSegments.length === 0) {
+        return;
+    }
+
+    if (thinkingTextSegments.some(segment => looksLikeThinkingNoise(segment.value))) {
+        return;
+    }
+
+    for (const segment of state.segments) {
+        if (segment.type === 'text' && segment.phase === 'thinking') {
+            segment.phase = 'answer';
+        }
+    }
+}
+
+function looksLikeThinkingNoise(text: string): boolean {
+    const lower = text.toLowerCase();
+    const hasStepNoise = text
+        .split('\n')
+        .some(line => isCodexThinkingStepLine(line));
+
+    if (hasStepNoise) {
+        return true;
+    }
+
+    return lower.startsWith('exec ') ||
+        lower.includes('\nexec ') ||
+        lower.includes(' succeeded in ') ||
+        lower.includes(' failed in ') ||
+        lower.includes(' exited ') ||
+        lower.includes('apply_patch') ||
+        lower.includes('*** begin patch') ||
+        lower.includes('*** end patch') ||
+        lower.includes('powershell.exe') ||
+        lower.includes('cmd.exe');
 }
 
 function makeTextSegment(state: ParseState, value: string, phase: StreamPhase, source: StreamSegmentSource): StreamSegment {
@@ -318,7 +443,7 @@ function parseExecBlock(lines: string[], startIndex: number): { value: ExecSegme
             continue;
         }
 
-        if (isExecStart(trimmed) || isPatchStart(trimmed) || isThinkingHeading(trimmed) || /^\s*codex\s*:?\s*$/i.test(trimmed)) {
+        if (isExecStart(trimmed) || isPatchStart(trimmed) || isThinkingHeading(trimmed) || isRoleLabelLine(trimmed)) {
             break;
         }
 
@@ -390,7 +515,7 @@ function parsePatchBlock(lines: string[], startIndex: number): { value: PatchSeg
             break;
         }
 
-        if (index > startIndex && (isExecStart(current) || /^\s*codex\s*:?\s*$/i.test(current))) {
+        if (index > startIndex && (isExecStart(current) || isRoleLabelLine(current))) {
             nextIndex = index - 1;
             break;
         }

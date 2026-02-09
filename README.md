@@ -30,6 +30,8 @@ CodexR is a VS Code extension that provides a sidebar chat interface as a GUI wr
 
 - `codexSidebar.defaultProvider`: default provider for new input (`codex`, `claude`, or `pi`, default is `codex`)
 - `codexSidebar.parserMode`: streaming parser mode (`v2` or `legacy`, default `v2`)
+- `codexSidebar.showToolUsageIndicator`: show `Thinking Process · Tools N` summary indicator with highlight when tool calls are detected (default `true`)
+- `codexSidebar.codexThinkingNoiseFilterEnabled`: filter low-value Codex thinking lines like `Planning/Preparing/...` headings before rendering (default `true`)
 - `codexSidebar.codexAutoResumeSession`: auto-resume last Codex session for follow-up requests (default `true`)
 - `codexSidebar.codexEnforceCheckpointPolicy`: inject a system policy requiring checkpoints before file edits (default `true`)
 - `codexSidebar.codexRequireHardCheckpoint`: create a real workspace snapshot before each Codex request; request is blocked on failure (default `true`)
@@ -37,7 +39,7 @@ CodexR is a VS Code extension that provides a sidebar chat interface as a GUI wr
 
 ## Codex Resume & Checkpoint Behavior
 
-- Codex requests now reuse the latest `codex exec` session by default, enabling conversation-level resume.
+- Codex requests reuse the latest `codex exec` session by default; set `codexSidebar.codexAutoResumeSession` to `false` to disable native resume and use local context fallback only.
 - The extension injects a system policy for Codex: before editing/creating files, create a checkpoint first.
 - This policy is skipped for read-only tasks and can be disabled via `codexSidebar.codexEnforceCheckpointPolicy`.
 
@@ -49,10 +51,8 @@ CodexR is a VS Code extension that provides a sidebar chat interface as a GUI wr
 
 ## Restore Checkpoint
 
-- Run command `CodexR: Restore Latest Checkpoint` from Command Palette.
-- Run command `CodexR: Restore Checkpoint...` to choose any historical checkpoint.
-- The extension creates a safety checkpoint before restore, then rolls workspace files back to the selected snapshot state.
-- Restore overwrites current workspace files (except ignored paths like `.git/`, `node_modules/`, `out/`).
+- `CodexR: Restore Latest Checkpoint` and `CodexR: Restore Checkpoint...` are currently placeholders in this build.
+- Running either command only shows an informational message that checkpoint restore is temporarily unavailable.
 
 ## Claude Stream Notes
 

@@ -37,11 +37,11 @@
     "commands": [
       {
         "command": "codexSidebar.restoreLatestCheckpoint",
-        "title": "CodexR: Restore Latest Checkpoint"
+        "title": "CodexR: Restore Latest Checkpoint (Temporarily Unavailable)"
       },
       {
         "command": "codexSidebar.restoreCheckpoint",
-        "title": "CodexR: Restore Checkpoint..."
+        "title": "CodexR: Restore Checkpoint... (Temporarily Unavailable)"
       }
     ],
     "configuration": {
@@ -65,6 +65,16 @@
           ],
           "default": "v2",
           "description": "Streaming parser mode. Use legacy for quick rollback if parsing regression occurs."
+        },
+        "codexSidebar.showToolUsageIndicator": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show tool usage count in the Thinking Process summary and highlight it when tools were used."
+        },
+        "codexSidebar.codexThinkingNoiseFilterEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Filter low-value Codex thinking lines (e.g. Planning/Preparing headings) before rendering."
         },
         "codexSidebar.codexAutoResumeSession": {
           "type": "boolean",

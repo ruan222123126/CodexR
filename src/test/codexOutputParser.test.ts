@@ -111,4 +111,85 @@ suite('codexOutputParser', () => {
         assert.strictEqual(patch.value.additions, 1);
         assert.strictEqual(patch.value.deletions, 1);
     });
+
+    test('parseCodexOutput 应支持 assistant 角色分段', () => {
+        const raw = [
+            'Thinking',
+            '先分析',
+            'assistant',
+            '这是 assistant 角色答案',
+        ].join('\n');
+
+        const parsed = parseCodexOutput(raw);
+        assert.ok(parsed.content.includes('assistant 角色答案'));
+    });
+
+    test('parseCodexOutput 应支持 final/answer 角色分段', () => {
+        const raw = [
+            'Thinking',
+            '中间分析',
+            'final:',
+            '第一段答案',
+            'answer',
+            '第二段答案',
+        ].join('\n');
+
+        const parsed = parseCodexOutput(raw);
+        assert.ok(parsed.content.includes('第一段答案'));
+        assert.ok(parsed.content.includes('第二段答案'));
+    });
+
+    test('parseCodexOutput 无角色行且无噪音时应安全回退为答案', () => {
+        const raw = [
+            'Thinking',
+            '这是最终答案正文，没有角色标签',
+        ].join('\n');
+
+        const parsed = parseCodexOutput(raw);
+        assert.ok(parsed.content.includes('最终答案正文'));
+    });
+
+    test('parseCodexOutput 无角色行但有 exec 噪音时不应错误回退', () => {
+        const raw = [
+            'Thinking',
+            'exec bash -c "echo hello"',
+            'hello',
+            'bash -c "echo hello" succeeded in 30ms:',
+            '这行看起来像答案但夹在思考日志里',
+        ].join('\n');
+
+        const parsed = parseCodexOutput(raw);
+        assert.strictEqual(parsed.content, '');
+        assert.ok(parsed.thought.includes('echo hello'));
+    });
+
+    test('parseCodexOutput 默认应过滤 Codex thinking 步骤噪音', () => {
+        const raw = [
+            'Thinking',
+            '**Planning targeted source inspection**',
+            '**Preparing to inspect core files**',
+            'exec bash -c "echo hello"',
+            'hello',
+            'bash -c "echo hello" succeeded in 30ms:',
+        ].join('\n');
+
+        const parsed = parseCodexOutput(raw);
+        assert.strictEqual(parsed.content, '');
+        assert.ok(parsed.thought.includes('echo hello'));
+    });
+
+    test('parseCodexOutput 关闭过滤后应保留 Codex thinking 步骤噪音', () => {
+        const raw = [
+            'Thinking',
+            '**Planning targeted source inspection**',
+            '**Preparing to inspect core files**',
+            'exec bash -c "echo hello"',
+            'hello',
+            'bash -c "echo hello" succeeded in 30ms:',
+        ].join('\n');
+
+        const parsed = parseCodexOutput(raw, { filterThinkingNoise: false });
+        assert.ok(parsed.content.includes('Planning targeted source inspection'));
+        assert.ok(parsed.content.includes('Preparing to inspect core files'));
+    });
 });
