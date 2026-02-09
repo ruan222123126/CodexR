@@ -198,21 +198,6 @@ export const WEBVIEW_SCRIPT_RENDER = `
                         let inputDisplay = '';
                         let secondaryInfo = '';
 
-                        // Tool icon mapping
-                        const toolIcons = {
-                            'Read': '📄',
-                            'Write': '✏️',
-                            'Edit': '🔧',
-                            'Bash': '⚡',
-                            'Grep': '🔍',
-                            'Glob': '📁',
-                            'WebFetch': '🌐',
-                            'WebSearch': '🔎',
-                            'Task': '📋',
-                            'TodoWrite': '✅',
-                        };
-                        const icon = toolIcons[toolName] || '🔧';
-
                         // Try to parse and format the input JSON
                         if (entry.input) {
                             try {
@@ -259,26 +244,18 @@ export const WEBVIEW_SCRIPT_RENDER = `
                             }
                         }
 
-                        // Build the card with border-box style
-                        const lines = [
-                            '<div class="tool-card">',
-                            '  <div class="tool-card-header">',
-                            '    <span class="tool-card-icon">' + icon + '</span>',
-                            '    <span class="tool-card-name">' + escapeHtml(toolName) + '</span>',
+                        // Build the card with op-card style (same as exec card)
+                        const chunks = [
+                            '<div class="op-card op-tool">',
+                            '  <div class="op-card-head">',
+                            '    <span class="op-badge">' + escapeHtml(toolName) + '</span>',
                             '  </div>',
+                            inputDisplay ? ('  <div class="op-command">' + escapeHtml(inputDisplay) + '</div>') : '',
+                            secondaryInfo ? ('  <div class="op-output">' + escapeHtml(secondaryInfo) + '</div>') : '',
+                            '</div>',
                         ];
 
-                        if (inputDisplay) {
-                            lines.push('  <div class="tool-card-content">' + escapeHtml(inputDisplay) + '</div>');
-                        }
-
-                        if (secondaryInfo) {
-                            lines.push('  <div class="tool-card-secondary">' + escapeHtml(secondaryInfo) + '</div>');
-                        }
-
-                        lines.push('</div>');
-
-                        return lines.join('');
+                        return chunks.filter(Boolean).join('');
                     }
 
                     function renderThinkingContent(thoughtText, segments) {
@@ -307,8 +284,13 @@ export const WEBVIEW_SCRIPT_RENDER = `
                                 const newline = String.fromCharCode(10);
                                 const doubleNewline = newline + newline;
                                 const paragraphs = String(part.value || '').split(doubleNewline).map(p => p.trim()).filter(Boolean);
+                                const isAiText = part.type === 'ai_text';
                                 for (const para of paragraphs) {
-                                    rendered.push('<div class="thinking-text">' + escapeHtml(para) + '</div>');
+                                    if (isAiText) {
+                                        rendered.push('<div class="ai-text"><span class="ai-label">AI:</span> ' + escapeHtml(para) + '</div>');
+                                    } else {
+                                        rendered.push('<div class="thinking-text">' + escapeHtml(para) + '</div>');
+                                    }
                                 }
                             }
                         }

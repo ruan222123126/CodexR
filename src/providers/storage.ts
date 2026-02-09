@@ -68,7 +68,9 @@ export class SessionStorage {
             }
 
             this.markWorkspaceVisited();
-            return { sessions, activeSessionId, isNewWorkspace };
+            // If there are existing sessions with messages, don't show home page
+            const hasExistingContent = sessions.some(s => s.messages && s.messages.length > 0);
+            return { sessions, activeSessionId, isNewWorkspace: isNewWorkspace && !hasExistingContent };
         } catch (error) {
             const backupKey = `codexSidebar.sessions.backup.${Date.now()}`;
             const backup: BackupRecord = {

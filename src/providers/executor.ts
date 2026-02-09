@@ -70,10 +70,43 @@ export class Executor {
         private readonly callbacks: ExecutorCallbacks,
     ) {}
 
+    /**
+     * Terminate a process tree using SIGINT.
+     * On Windows, uses taskkill to kill the entire process tree.
+     * On Unix, kills the process group if available, otherwise sends SIGINT to the process.
+     */
+    private killProcessTree(child: cp.ChildProcess): void {
+        if (!child.pid) {
+            child.kill('SIGINT');
+            return;
+        }
+
+        const isWindows = os.platform() === 'win32';
+
+        if (isWindows) {
+            // Windows: use taskkill with /T flag to kill process tree
+            try {
+                cp.execSync(`taskkill /F /T /PID ${child.pid}`, { stdio: 'ignore' });
+            } catch {
+                // Fallback if taskkill fails
+                child.kill();
+            }
+        } else {
+            // Unix: try to kill the process group first, then fallback to SIGINT
+            try {
+                // Negative PID kills the entire process group
+                process.kill(-child.pid, 'SIGINT');
+            } catch {
+                // Fallback: send SIGINT directly to the process
+                child.kill('SIGINT');
+            }
+        }
+    }
+
     cancelExecution(): void {
         if (this._activeChild && !this._activeChild.killed) {
             const previousRequestId = this._activeRequestId;
-            this._activeChild.kill();
+            this.killProcessTree(this._activeChild);
             this.deps.postToWebview('stream-end', {
                 requestId: previousRequestId,
                 canceled: true,
@@ -93,7 +126,7 @@ export class Executor {
 
         if (this._activeChild && !this._activeChild.killed) {
             const previousRequestId = this._activeRequestId;
-            this._activeChild.kill();
+            this.killProcessTree(this._activeChild);
             this.deps.postToWebview('stream-end', {
                 requestId: previousRequestId,
                 canceled: true,
@@ -209,10 +242,13 @@ export class Executor {
         rawOutput: string;
         exitCode?: number;
     }> {
+        const isWindows = os.platform() === 'win32';
         const child = cp.spawn(providerCommand.command, providerCommand.args, {
             shell: true,
             cwd,
             env: { ...process.env, LANG: 'en_US.UTF-8', LC_ALL: 'en_US.UTF-8' },
+            // Create new process group on Unix for proper tree termination
+            detached: !isWindows,
         });
 
         this._activeChild = child;
@@ -375,7 +411,7 @@ export class Executor {
                     clearTimeout(flushTimer);
                     flushTimer = undefined;
                 }
-                child.kill();
+                this.killProcessTree(child);
 
                 this.deps.postToWebview('stream-end', {
                     requestId,

@@ -236,10 +236,24 @@ export const SEGMENT_PARSER = `
                             if (isExecStart(trimmed)) {
                                 flushText();
 
-                                const entry = parseExecSummary(line);
+                                // Check if this is a standalone "exec" line (new Codex format)
+                                const isStandaloneExec = trimWrapper(trimmed).toLowerCase() === 'exec';
+                                let entry;
+                                let scanStart;
+
+                                if (isStandaloneExec && i + 1 < lines.length) {
+                                    // New format: "exec" on its own line, command summary on next line
+                                    entry = parseExecSummary(lines[i + 1]);
+                                    scanStart = i + 2;
+                                } else {
+                                    // Old format: "exec command..." on same line
+                                    entry = parseExecSummary(line);
+                                    scanStart = i + 1;
+                                }
+
                                 const outputLines = [];
 
-                                for (let j = i + 1; j < lines.length; j++) {
+                                for (let j = scanStart; j < lines.length; j++) {
                                     const current = lines[j];
                                     const currentTrimmed = current.trim();
 
@@ -266,6 +280,12 @@ export const SEGMENT_PARSER = `
                                         }
                                         if (summaryEntry.exitCode) {
                                             entry.exitCode = summaryEntry.exitCode;
+                                        }
+                                        // For standalone exec, the first summary line contains the command
+                                        if (isStandaloneExec && !entry.command) {
+                                            entry.command = summaryEntry.command;
+                                            entry.runnerLabel = summaryEntry.runnerLabel;
+                                            entry.cwd = summaryEntry.cwd;
                                         }
                                         i = j;
                                         continue;
@@ -375,7 +395,21 @@ export const SEGMENT_PARSER = `
 
                         const parts = [];
                         for (const segment of segments) {
-                            if (!segment || segment.phase !== 'thinking') {
+                            if (!segment) {
+                                continue;
+                            }
+
+                            // Handle answer phase text (AI's response)
+                            if (segment.phase === 'answer' && segment.type === 'text') {
+                                const value = String(segment.value || '').trim();
+                                if (value) {
+                                    parts.push({ type: 'ai_text', value: value });
+                                }
+                                continue;
+                            }
+
+                            // Skip non-thinking segments (except answer text handled above)
+                            if (segment.phase !== 'thinking') {
                                 continue;
                             }
 

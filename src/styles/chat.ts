@@ -137,6 +137,26 @@ details[open].thinking-block summary::before {
     padding-top: 6px;
     margin-top: 2px;
 }
+.ai-text {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    font-family: var(--vscode-editor-font-family, 'Consolas', monospace);
+    font-size: 11px;
+    line-height: 1.4;
+    background: var(--vscode-textBlockQuote-background);
+    border-left: 2px solid var(--vscode-textLink-foreground);
+    padding: 4px 8px;
+    border-radius: 2px;
+}
+.ai-text + .ai-text {
+    margin-top: 4px;
+}
+.ai-label {
+    font-weight: 600;
+    color: var(--vscode-textLink-foreground);
+    margin-right: 4px;
+}
 .thinking-separator {
     height: 1px;
     background: linear-gradient(to right, var(--vscode-textBlockQuote-border), transparent);
@@ -228,57 +248,6 @@ details[open].thinking-block summary::before {
     margin: 1px 0;
     font-family: var(--vscode-editor-font-family, 'Consolas', monospace);
     opacity: 0.8;
-}
-
-/* 🛠️ 工具调用卡片样式 - 黑曜石风格 */
-.tool-card {
-    background: #1b1b1b;
-    border-radius: 8px;
-    box-shadow:
-        0 4px 12px rgba(0, 0, 0, 0.4),
-        0 0 0 1px rgba(255, 255, 255, 0.08);
-    overflow: hidden;
-    font-family: var(--vscode-editor-font-family, 'Fira Code', 'Consolas', monospace);
-}
-.tool-card + .tool-card {
-    margin-top: 8px;
-}
-.tool-card-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 12px;
-    background: #252526;
-    border-bottom: 1px solid #333;
-}
-.tool-card-icon {
-    font-size: 14px;
-    line-height: 1;
-    opacity: 0.9;
-}
-.tool-card-name {
-    font-size: 12px;
-    font-weight: 500;
-    color: #8b949e;
-    letter-spacing: 0.3px;
-}
-.tool-card-content {
-    padding: 12px 14px;
-    font-family: var(--vscode-editor-font-family, 'Fira Code', 'Consolas', monospace);
-    font-size: 12px;
-    line-height: 1.5;
-    white-space: pre-wrap;
-    word-break: break-all;
-    color: #d4d4d4;
-    background: #1b1b1b;
-}
-.tool-card-secondary {
-    padding: 6px 14px 10px;
-    font-size: 11px;
-    color: #5c6370;
-    font-style: italic;
-    border-top: 1px solid #333;
-    background: #1b1b1b;
 }
 
 /* 💬 最终回复样式 */

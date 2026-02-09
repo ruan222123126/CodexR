@@ -339,11 +339,31 @@ function makePatchSegment(state: ParseState, value: PatchSegmentValue): StreamSe
 }
 
 function parseExecBlock(lines: string[], startIndex: number): { value: ExecSegmentValue; nextIndex: number } {
-    const header = parseExecSummary(lines[startIndex]);
-    const outputLines: string[] = [];
-    let nextIndex = startIndex;
+    const headerLine = lines[startIndex];
+    const headerTrimmed = trimWrapper(headerLine).toLowerCase();
 
-    for (let index = startIndex + 1; index < lines.length; index++) {
+    // Check if this is a standalone "exec" line (new Codex format)
+    // In this case, the command info is on the next line
+    const isStandaloneExec = headerTrimmed === 'exec';
+
+    let header: ExecSegmentValue;
+    let scanStartIndex: number;
+
+    if (isStandaloneExec && startIndex + 1 < lines.length) {
+        // New format: "exec" on its own line, command summary on next line
+        const nextLine = lines[startIndex + 1];
+        header = parseExecSummary(nextLine);
+        scanStartIndex = startIndex + 2;
+    } else {
+        // Old format: "exec command..." on same line
+        header = parseExecSummary(headerLine);
+        scanStartIndex = startIndex + 1;
+    }
+
+    const outputLines: string[] = [];
+    let nextIndex = isStandaloneExec ? startIndex + 1 : startIndex;
+
+    for (let index = scanStartIndex; index < lines.length; index++) {
         const current = lines[index];
         const trimmed = current.trim();
 
@@ -365,6 +385,12 @@ function parseExecBlock(lines: string[], startIndex: number): { value: ExecSegme
             header.status = summary.status || header.status;
             header.duration = summary.duration || header.duration;
             header.exitCode = summary.exitCode || header.exitCode;
+            // For standalone exec, the first summary line contains the command
+            if (isStandaloneExec && !header.command) {
+                header.command = summary.command;
+                header.runnerLabel = summary.runnerLabel;
+                header.cwd = summary.cwd;
+            }
             nextIndex = index;
             continue;
         }
