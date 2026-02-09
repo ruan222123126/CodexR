@@ -3,7 +3,7 @@ export type StreamPhase = 'thinking' | 'answer';
 export type StreamSegmentSource = 'stdout' | 'stderr' | 'mixed';
 
 type StreamSegmentBase = {
-    type: 'text' | 'exec' | 'patch' | 'error';
+    type: 'text' | 'exec' | 'patch' | 'error' | 'tool_use';
     phase: StreamPhase;
     source: StreamSegmentSource;
     seq: number;
@@ -50,7 +50,18 @@ export type PatchStreamSegment = StreamSegmentBase & {
     value: PatchSegmentValue;
 };
 
-export type StreamSegment = TextStreamSegment | ErrorStreamSegment | ExecStreamSegment | PatchStreamSegment;
+export type ToolUseSegmentValue = {
+    id: string;
+    name: string;
+    input: string;
+};
+
+export type ToolUseStreamSegment = StreamSegmentBase & {
+    type: 'tool_use';
+    value: ToolUseSegmentValue;
+};
+
+export type StreamSegment = TextStreamSegment | ErrorStreamSegment | ExecStreamSegment | PatchStreamSegment | ToolUseStreamSegment;
 
 export function buildAnswerTextFromSegments(segments: StreamSegment[]): string {
     const texts = segments
@@ -83,6 +94,11 @@ export function buildThoughtTextFromSegments(segments: StreamSegment[]): string 
                 const statusPart = segment.value.status ? ` [${segment.value.status}]` : '';
                 const outputPart = segment.value.output ? `\n${segment.value.output}` : '';
                 return `exec ${segment.value.command}${statusPart}${outputPart}`.trim();
+            }
+
+            if (segment.type === 'tool_use') {
+                const inputPart = segment.value.input ? `: ${segment.value.input}` : '';
+                return `tool ${segment.value.name}${inputPart}`.trim();
             }
 
             return segment.value.files.join('\n').trim() || 'patch';

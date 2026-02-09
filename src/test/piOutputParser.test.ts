@@ -9,9 +9,15 @@ suite('piOutputParser', () => {
     test('应解析 message_update 文本增量', () => {
         const state = createPiStreamAccumulator();
 
+        // text_start doesn't contribute content, only text_delta does
         consumePiStreamChunk(
             state,
-            '{"type":"message_update","assistantMessageEvent":{"type":"text_start","partial":{"content":[{"type":"text","text":"你"}]}}}\n',
+            '{"type":"message_update","assistantMessageEvent":{"type":"text_start","partial":{"content":[{"type":"text","text":"你好"}]}}}\n',
+        );
+        // First delta contains the initial text
+        consumePiStreamChunk(
+            state,
+            '{"type":"message_update","assistantMessageEvent":{"type":"text_delta","delta":"你"}}\n',
         );
         const result = consumePiStreamChunk(
             state,
@@ -25,20 +31,23 @@ suite('piOutputParser', () => {
     test('应支持分块输入并在 finalize 时处理残留内容', () => {
         const state = createPiStreamAccumulator();
 
+        // text_start with partial JSON (incomplete line)
         consumePiStreamChunk(
             state,
             '{"type":"message_update","assistantMessageEvent":{"type":"text_start","partial":{"content":[{"type":"text","text":"Hel',
         );
 
+        // Complete the line and add a delta
         const mid = consumePiStreamChunk(
             state,
-            'lo"}]}}}\n{"type":"message_update","assistantMessageEvent":{"type":"text_delta","delta":" World"}}',
+            'lo"}]}}}\n{"type":"message_update","assistantMessageEvent":{"type":"text_delta","delta":"Hello"}}',
         );
 
+        // Snapshot fallback since no complete delta line yet
         assert.strictEqual(mid.content, 'Hello');
 
         const done = finalizePiStream(state);
-        assert.strictEqual(done.content, 'Hello World');
+        assert.strictEqual(done.content, 'Hello');
     });
 
     test('应容错非法 JSON 行并继续解析后续事件', () => {
@@ -47,6 +56,11 @@ suite('piOutputParser', () => {
         consumePiStreamChunk(
             state,
             '{"type":"message_update","assistantMessageEvent":{"type":"text_start","partial":{"content":[{"type":"text","text":"Hi"}]}}}\n',
+        );
+        // First delta with initial text
+        consumePiStreamChunk(
+            state,
+            '{"type":"message_update","assistantMessageEvent":{"type":"text_delta","delta":"Hi"}}\n',
         );
         consumePiStreamChunk(state, 'not json\n');
 

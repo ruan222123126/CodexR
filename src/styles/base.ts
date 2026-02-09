@@ -14,6 +14,16 @@ html {
     box-sizing: border-box;
 }
 
+/* 隐藏滚动条但保留滚动功能 */
+::-webkit-scrollbar {
+    display: none;
+}
+
+* {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
 body {
     width: 100%;
     max-width: 100%;
@@ -25,7 +35,8 @@ body {
     overflow: hidden;
 }
 
-body.history-mode #top-toolbar {
+body.history-mode #top-toolbar,
+body.settings-mode #top-toolbar {
     display: none;
 }
 `;

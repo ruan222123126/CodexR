@@ -8,7 +8,7 @@ export const HISTORY_STYLES = `
     min-height: 0;
     padding: 14px 14px 10px;
     box-sizing: border-box;
-    background: #030303;
+    background: var(--vscode-editor-background);
     overflow: hidden;
     color: #f0f0f0;
     font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -27,6 +27,7 @@ body.history-mode .history-page {
     gap: 8px;
     padding: 2px 2px 10px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    min-height: 24px;
 }
 
 .history-page-topbar-left {
@@ -34,6 +35,7 @@ body.history-mode .history-page {
     align-items: center;
     gap: 10px;
     min-width: 0;
+    height: 24px;
 }
 
 .history-back-btn {
@@ -46,8 +48,9 @@ body.history-mode .history-page {
     cursor: pointer;
     padding: 0;
     display: inline-flex;
-    align: center;
+    align-items: center;
     justify-content: center;
+    flex-shrink: 0;
     transition: background-color 0.2s ease, color 0.2s ease;
 }
 
@@ -63,9 +66,9 @@ body.history-mode .history-page {
 
 .history-page-heading {
     display: flex;
-    flex-direction: column;
-    gap: 2px;
+    align-items: center;
     min-width: 0;
+    height: 24px;
 }
 
 .history-page-kicker {
@@ -90,6 +93,7 @@ body.history-mode .history-page {
     display: flex;
     align-items: center;
     gap: 6px;
+    height: 24px;
 }
 
 .history-icon-btn {
@@ -104,6 +108,7 @@ body.history-mode .history-page {
     justify-content: center;
     cursor: not-allowed;
     padding: 0;
+    flex-shrink: 0;
     transition: color 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
 }
 
@@ -127,52 +132,101 @@ body.history-mode .history-page {
     position: relative;
     display: flex;
     align-items: center;
-    padding: 8px 4px 2px;
+    padding: 4px 0 8px;
+}
+
+.history-search-container {
+    position: relative;
+    width: 100%;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    transition: all 0.3s ease;
+}
+
+.history-search-container:hover {
+    background: rgba(0, 0, 0, 0.4);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.history-search-container:focus-within {
+    background: rgba(0, 0, 0, 0.5);
+    border-color: rgba(255, 255, 255, 0.15);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.05);
 }
 
 .history-search-icon {
     position: absolute;
-    left: 6px;
+    left: 12px;
     top: 50%;
     transform: translateY(-50%);
-    color: rgba(255, 255, 255, 0.4);
+    color: rgba(255, 255, 255, 0.3);
     pointer-events: none;
-    transition: color 0.2s ease;
+    transition: color 0.3s ease;
 }
 
 .history-search-icon svg {
-    width: 13px;
-    height: 13px;
+    width: 14px;
+    height: 14px;
+}
+
+.history-search-container:focus-within .history-search-icon {
+    color: rgba(255, 255, 255, 0.5);
 }
 
 .history-search-input {
     width: 100%;
-    height: 32px;
+    height: 38px;
     border: none;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.09);
     background: transparent;
-    color: rgba(255, 255, 255, 0.74);
-    padding: 0 6px 0 24px;
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.85);
+    padding: 0 12px 0 38px;
+    font-size: 13px;
+    font-weight: 400;
+    letter-spacing: 0.01em;
     outline: none;
-    transition: border-color 0.2s ease, color 0.2s ease;
+    transition: color 0.3s ease;
 }
 
 .history-search-input::placeholder {
-    color: rgba(255, 255, 255, 0.35);
+    color: rgba(255, 255, 255, 0.3);
     opacity: 1;
 }
 
 .history-search-input:focus {
-    border-bottom-color: rgba(255, 255, 255, 0.24);
-    color: rgba(255, 255, 255, 0.92);
+    color: rgba(255, 255, 255, 0.95);
 }
 
-.history-search-wrap:focus-within .history-search-icon {
-    color: rgba(255, 255, 255, 0.34);
+.history-search-clear {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 22px;
+    height: 22px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.3);
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.history-search-clear:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.history-search-clear svg {
+    width: 12px;
+    height: 12px;
+}
+
+.history-search-container.has-value .history-search-clear {
+    display: inline-flex;
 }
 
 .history-filter-row {
@@ -247,39 +301,32 @@ body.history-mode .history-page {
     flex-direction: column;
     gap: 6px;
     padding: 0 0 2px;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
 }
 
 .history-list::-webkit-scrollbar {
-    width: 2px;
-}
-
-.history-list::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-.history-list::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.14);
+    display: none;
 }
 
 .history-item {
     position: relative;
-    border: 1px solid transparent;
+    border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: 18px;
-    background: transparent;
+    background: rgba(255, 255, 255, 0.04);
     padding: 14px 16px;
     cursor: pointer;
     transition: background-color 0.35s ease, border-color 0.35s ease, transform 0.35s ease;
 }
 
 .history-item:hover {
-    background: rgba(255, 255, 255, 0.02);
+    background: rgba(255, 255, 255, 0.07);
+    border-color: rgba(255, 255, 255, 0.1);
 }
 
 .history-item.active {
-    background: rgba(255, 255, 255, 0.03);
-    border-color: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.09);
+    border-color: rgba(255, 255, 255, 0.12);
 }
 
 .history-item-title-row {
@@ -293,11 +340,11 @@ body.history-mode .history-page {
 .history-item-title {
     flex: 1;
     min-width: 0;
-    font-size: 15px;
+    font-size: 13px;
     font-weight: 400;
     letter-spacing: -0.03em;
     line-height: 1.2;
-    color: rgba(255, 255, 255, 0.65);
+    color: rgba(255, 255, 255, 0.82);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -306,13 +353,6 @@ body.history-mode .history-page {
 
 .history-item.active .history-item-title {
     color: rgba(255, 255, 255, 0.97);
-}
-
-.history-item-meta {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-height: 16px;
 }
 
 .history-item-model {
@@ -324,22 +364,7 @@ body.history-mode .history-page {
     border-radius: 4px;
     padding: 2px 5px;
     text-transform: uppercase;
-}
-
-.history-item-count {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.65);
-}
-
-.history-item-count svg {
-    width: 10px;
-    height: 10px;
+    flex-shrink: 0;
 }
 
 .history-item-preview {
@@ -348,7 +373,7 @@ body.history-mode .history-page {
     line-height: 1.5;
     font-style: normal;
     font-weight: 400;
-    color: rgba(255, 255, 255, 0.55);
+    color: rgba(255, 255, 255, 0.72);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -356,24 +381,47 @@ body.history-mode .history-page {
 }
 
 .history-item:hover .history-item-preview {
-    color: rgba(255, 255, 255, 0.75);
+    color: rgba(255, 255, 255, 0.88);
+}
+
+.history-item-footer {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 10px;
+}
+
+.history-item-folder {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.45);
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.history-item-folder svg {
+    width: 11px;
+    height: 11px;
+    flex-shrink: 0;
 }
 
 .history-item-time {
-    margin-top: 8px;
-    font-size: 8px;
-    font-weight: 700;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.5);
+    font-size: 10px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.45);
     display: inline-flex;
     align-items: center;
     gap: 4px;
 }
 
 .history-item-time svg {
-    width: 9px;
-    height: 9px;
+    width: 11px;
+    height: 11px;
 }
 
 .history-item-actions {
@@ -483,6 +531,7 @@ body.history-mode .history-page {
     display: none;
     align-items: center;
     gap: 8px;
+    height: 24px;
 }
 
 .history-selected-count {
@@ -491,11 +540,12 @@ body.history-mode .history-page {
     color: rgba(255, 255, 255, 0.75);
     min-width: 20px;
     text-align: center;
+    line-height: 24px;
 }
 
 .history-multi-btn {
-    width: 22px;
-    height: 22px;
+    width: 24px;
+    height: 24px;
     border-radius: 8px;
     border: 1px solid rgba(255, 255, 255, 0.05);
     background: transparent;
@@ -505,6 +555,7 @@ body.history-mode .history-page {
     justify-content: center;
     cursor: pointer;
     padding: 0;
+    flex-shrink: 0;
     transition: color 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
 }
 
@@ -539,6 +590,12 @@ body.history-mode .history-page {
     border-color: rgba(255, 255, 255, 0.3);
 }
 
+.history-multi-btn.select-all:hover {
+    border-color: rgba(34, 197, 94, 0.5);
+    color: rgba(34, 197, 94, 0.9);
+    background: rgba(34, 197, 94, 0.15);
+}
+
 /* 多选模式下的历史项样式 */
 .history-page.multi-select-mode .history-item {
     padding-left: 40px;
@@ -564,8 +621,8 @@ body.history-mode .history-page {
 }
 
 .history-page.multi-select-mode .history-item:hover .history-item-checkbox.checked {
-    background: rgba(59, 130, 246, 0.85);
-    border-color: rgba(59, 130, 246, 0.9);
+    background: rgba(34, 197, 94, 0.85);
+    border-color: rgba(34, 197, 94, 0.9);
 }
 
 .history-item-checkbox {
@@ -587,8 +644,8 @@ body.history-mode .history-page {
 }
 
 .history-item-checkbox.checked {
-    background: rgba(59, 130, 246, 0.7);
-    border-color: rgba(59, 130, 246, 0.85);
+    background: rgba(34, 197, 94, 0.7);
+    border-color: rgba(34, 197, 94, 0.85);
 }
 
 .history-item-checkbox svg {
@@ -603,8 +660,8 @@ body.history-mode .history-page {
 }
 
 .history-item.selected {
-    background: rgba(59, 130, 246, 0.08) !important;
-    border-color: rgba(59, 130, 246, 0.25) !important;
+    background: rgba(34, 197, 94, 0.08) !important;
+    border-color: rgba(34, 197, 94, 0.25) !important;
 }
 
 /* 多选模式下隐藏项目操作按钮 */

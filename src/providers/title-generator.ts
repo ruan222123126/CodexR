@@ -1,6 +1,7 @@
 import * as cp from 'child_process';
 import { parseCodexOutput } from '../codexOutputParser';
-import type { ChatSession } from './types';
+import { Config, type TitleGenerationMode } from './config';
+import type { ChatSession, ProviderType } from './types';
 
 const TITLE_GENERATION_TIMEOUT_MS = 45_000;
 
@@ -38,7 +39,15 @@ export class TitleGenerator {
             return null;
         }
 
-        const generatedTitle = await this.generateTitleWithCodex(firstRound.userPrompt, firstRound.assistantText, cwd);
+        const mode = Config.getTitleGenerationMode();
+        const generatedTitle = await this.generateTitleByMode(
+            mode,
+            session.provider,
+            firstRound.userPrompt,
+            firstRound.assistantText,
+            cwd,
+        );
+
         if (!generatedTitle) {
             return null;
         }
@@ -54,6 +63,54 @@ export class TitleGenerator {
         };
 
         return updated;
+    }
+
+    private async generateTitleByMode(
+        mode: TitleGenerationMode,
+        currentProvider: ProviderType,
+        userPrompt: string,
+        assistantText: string,
+        cwd: string,
+    ): Promise<string | undefined> {
+        if (mode === 'firstMessage') {
+            return this.extractTitleFromFirstMessage(userPrompt);
+        }
+
+        const provider = mode === 'fixedProvider'
+            ? Config.getTitleFixedProvider()
+            : currentProvider;
+
+        return this.generateTitleWithProvider(provider, userPrompt, assistantText, cwd);
+    }
+
+    private extractTitleFromFirstMessage(userPrompt: string): string | undefined {
+        const trimmed = userPrompt.trim();
+        if (!trimmed) {
+            return undefined;
+        }
+
+        const firstLine = trimmed.split('\n')[0].trim();
+        if (!firstLine) {
+            return undefined;
+        }
+
+        const compact = firstLine.replace(/\s+/g, ' ');
+        return compact.slice(0, 48);
+    }
+
+    private async generateTitleWithProvider(
+        provider: ProviderType,
+        userPrompt: string,
+        assistantText: string,
+        cwd: string,
+    ): Promise<string | undefined> {
+        if (provider === 'claude') {
+            return this.generateTitleWithClaude(userPrompt, assistantText, cwd);
+        }
+        if (provider === 'pi') {
+            return this.generateTitleWithPi(userPrompt, assistantText, cwd);
+        }
+        return this.generateTitleWithCodex(userPrompt, assistantText, cwd);
     }
 
     private getFirstRoundDialog(session: ChatSession): { userPrompt: string; assistantText: string } | null {
@@ -77,12 +134,8 @@ export class TitleGenerator {
         return { userPrompt, assistantText };
     }
 
-    private async generateTitleWithCodex(userPrompt: string, assistantText: string, cwd: string): Promise<string | undefined> {
-        if (!this.isCommandAvailable('codex', ['--version'], cwd)) {
-            return undefined;
-        }
-
-        const prompt = [
+    private buildTitlePrompt(userPrompt: string, assistantText: string): string {
+        return [
             'You generate concise chat session titles.',
             'Return only one short title line.',
             'Rules:',
@@ -96,6 +149,61 @@ export class TitleGenerator {
             'Assistant reply:',
             assistantText.slice(0, 1200),
         ].join('\n');
+    }
+
+    private async generateTitleWithClaude(userPrompt: string, assistantText: string, cwd: string): Promise<string | undefined> {
+        if (!this.isCommandAvailable('claude', ['--version'], cwd)) {
+            return undefined;
+        }
+
+        const prompt = this.buildTitlePrompt(userPrompt, assistantText);
+
+        const raw = await this.runCommandWithStdin(
+            'claude',
+            [
+                '-p',
+                '--dangerously-skip-permissions',
+            ],
+            prompt,
+            cwd,
+            TITLE_GENERATION_TIMEOUT_MS,
+        );
+
+        if (!raw) {
+            return undefined;
+        }
+
+        return this.normalizeGeneratedTitle(raw);
+    }
+
+    private async generateTitleWithPi(userPrompt: string, assistantText: string, cwd: string): Promise<string | undefined> {
+        if (!this.isCommandAvailable('pi', ['--version'], cwd)) {
+            return undefined;
+        }
+
+        const prompt = this.buildTitlePrompt(userPrompt, assistantText);
+
+        const raw = await this.runCommandWithStdin(
+            'pi',
+            ['-p'],
+            prompt,
+            cwd,
+            TITLE_GENERATION_TIMEOUT_MS,
+        );
+
+        if (!raw) {
+            return undefined;
+        }
+
+        return this.normalizeGeneratedTitle(raw);
+    }
+
+    private async generateTitleWithCodex(userPrompt: string, assistantText: string, cwd: string): Promise<string | undefined> {
+        if (!this.isCommandAvailable('codex', ['--version'], cwd)) {
+            return undefined;
+        }
+
+        const prompt = this.buildTitlePrompt(userPrompt, assistantText);
 
         const raw = await this.runCommandWithStdin(
             'codex',

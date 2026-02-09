@@ -15,6 +15,12 @@ export const TOOLBAR_STYLES = `
     flex-shrink: 0;
 }
 
+.toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 .toolbar-title {
     font-size: 12px;
     font-weight: 500;
@@ -24,13 +30,88 @@ export const TOOLBAR_STYLES = `
     cursor: pointer;
     user-select: none;
     transition: color 0.3s ease;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .toolbar-title:hover {
     color: rgba(228, 228, 231, 0.95);
 }
 
-.toolbar-add-btn {
+/* Token 计数器 */
+.token-counter {
+    display: none;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px 2px 4px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    cursor: default;
+    transition: all 0.2s ease;
+}
+
+.token-counter.visible {
+    display: flex;
+}
+
+.token-counter:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.token-counter-icon {
+    width: 14px;
+    height: 14px;
+    stroke: rgba(161, 161, 170, 0.7);
+    transition: stroke 0.2s ease;
+}
+
+.token-counter-value {
+    font-size: 11px;
+    font-weight: 500;
+    color: rgba(161, 161, 170, 0.9);
+    font-variant-numeric: tabular-nums;
+    transition: color 0.2s ease;
+}
+
+/* Token 使用量级别颜色 */
+.token-counter.level-low .token-counter-icon {
+    stroke: rgba(74, 222, 128, 0.8);
+}
+.token-counter.level-low .token-counter-value {
+    color: rgba(74, 222, 128, 0.9);
+}
+
+.token-counter.level-medium .token-counter-icon {
+    stroke: rgba(250, 204, 21, 0.8);
+}
+.token-counter.level-medium .token-counter-value {
+    color: rgba(250, 204, 21, 0.9);
+}
+
+.token-counter.level-high .token-counter-icon {
+    stroke: rgba(251, 146, 60, 0.8);
+}
+.token-counter.level-high .token-counter-value {
+    color: rgba(251, 146, 60, 0.9);
+}
+
+.token-counter.level-critical .token-counter-icon {
+    stroke: rgba(248, 113, 113, 0.8);
+}
+.token-counter.level-critical .token-counter-value {
+    color: rgba(248, 113, 113, 0.9);
+}
+
+.toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.toolbar-add-btn,
+.toolbar-settings-btn {
     width: 24px;
     height: 24px;
     border-radius: 50%;
@@ -46,16 +127,19 @@ export const TOOLBAR_STYLES = `
     transition: all 0.2s ease;
 }
 
-.toolbar-add-btn:hover {
+.toolbar-add-btn:hover,
+.toolbar-settings-btn:hover {
     background: rgba(255, 255, 255, 0.05);
     color: rgba(228, 228, 231, 0.95);
 }
 
-.toolbar-add-btn:active {
+.toolbar-add-btn:active,
+.toolbar-settings-btn:active {
     transform: scale(0.9);
 }
 
-.toolbar-add-btn svg {
+.toolbar-add-btn svg,
+.toolbar-settings-btn svg {
     width: 14px;
     height: 14px;
     stroke-width: 2;

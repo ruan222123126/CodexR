@@ -350,6 +350,16 @@ export const SEGMENT_PARSER = `
                                 continue;
                             }
 
+                            if (isToolUseStart(trimmed)) {
+                                flushText();
+
+                                const toolEntry = parseToolUseLine(trimmed);
+                                if (toolEntry) {
+                                    parts.push({ type: 'tool_use', value: toolEntry });
+                                }
+                                continue;
+                            }
+
                             textBuffer.push(line);
                         }
 
@@ -409,6 +419,19 @@ export const SEGMENT_PARSER = `
                                         files: Array.isArray(value.files) ? value.files.map(item => String(item)) : [],
                                     },
                                 });
+                                continue;
+                            }
+
+                            if (segment.type === 'tool_use') {
+                                const value = segment.value || {};
+                                parts.push({
+                                    type: 'tool_use',
+                                    value: {
+                                        id: String(value.id || ''),
+                                        name: String(value.name || 'Tool'),
+                                        input: String(value.input || ''),
+                                    },
+                                });
                             }
                         }
 
@@ -422,7 +445,7 @@ export const SEGMENT_PARSER = `
                     function countToolUsage(segments, fallbackThoughtText) {
                         if (Array.isArray(segments) && segments.length > 0) {
                             const countFromSegments = segments
-                                .filter(segment => segment && segment.phase === 'thinking' && (segment.type === 'exec' || segment.type === 'patch'))
+                                .filter(segment => segment && segment.phase === 'thinking' && (segment.type === 'exec' || segment.type === 'patch' || segment.type === 'tool_use'))
                                 .length;
 
                             if (countFromSegments > 0) {

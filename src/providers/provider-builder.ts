@@ -5,44 +5,65 @@ export class ProviderBuilder {
     constructor(
         private readonly createId: () => string,
         private readonly externalShouldAutoResumeCodexSession: () => boolean,
+        private readonly externalShouldAutoResumeClaudeSession: () => boolean,
+        private readonly externalShouldAutoResumePiSession: () => boolean,
+        private readonly externalShouldDisableClaudeThinking: () => boolean = () => false,
+        private readonly externalShouldDisablePiThinking: () => boolean = () => false,
     ) {}
 
     buildProviderCommand(session: ChatSession): ProviderCommand {
         if (session.provider === 'claude') {
-            if (!session.backendSessionId) {
-                session.backendSessionId = this.createId();
+            // Claude CLI's --session-id cannot be reused across multiple invocations.
+            // Each call to `claude` command requires a fresh session ID.
+            // We always generate a new session ID and rely on context injection for continuity.
+            const sessionId = this.createId();
+
+            // Determine if we need to inject conversation context
+            // If auto-resume is disabled or this is a fresh session, we need context injection
+            const needsContext = !this.externalShouldAutoResumeClaudeSession() || !session.backendSessionId;
+            if (needsContext) {
                 session.needsBootstrapContext = true;
             }
+
+            // Update the session's backendSessionId for reference (though it won't be reused)
+            session.backendSessionId = sessionId;
 
             return {
                 command: 'claude',
                 args: [
                     '-p',
-                    '--verbose',
+                    ...(this.externalShouldDisableClaudeThinking() ? [] : ['--verbose']),
                     '--output-format',
                     'stream-json',
                     '--dangerously-skip-permissions',
                     '--session-id',
-                    session.backendSessionId,
+                    sessionId,
                 ],
                 promptViaStdin: true,
                 versionArgs: ['--version'],
-                usesNativeSession: true,
+                // Since we always use fresh session IDs, native session resume is effectively disabled
+                // Context continuity is maintained through prompt injection
+                usesNativeSession: false,
             };
         }
 
         if (session.provider === 'pi') {
+            if (!this.externalShouldAutoResumePiSession()) {
+                session.needsBootstrapContext = true;
+            }
+
             return {
                 command: 'pi',
                 args: [
                     '-p',
                     '--mode',
                     'json',
-                    '--continue',
+                    ...(this.externalShouldAutoResumePiSession() ? ['--continue'] : []),
+                    ...(this.externalShouldDisablePiThinking() ? ['--thinking', 'off'] : []),
                 ],
                 promptViaStdin: true,
                 versionArgs: ['--version'],
-                usesNativeSession: true,
+                usesNativeSession: this.externalShouldAutoResumePiSession(),
             };
         }
 
@@ -211,6 +232,8 @@ export class ProviderBuilder {
             'resume',
             'unknown',
             'expired',
+            'already in use',
+            'in use',
         ].some(marker => lower.includes(marker));
     }
 }

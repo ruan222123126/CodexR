@@ -48,7 +48,7 @@ export const WEBVIEW_SCRIPT_STREAM = `
                             const target = activeStreamState.targetThought || '';
                             if (!target) {
                                 if (activeStreamState.phase !== 'answering') {
-                                    activeStreamElements.thinkingContent.innerHTML = renderStreamPlaceholder('Waiting for first output');
+                                    activeStreamElements.thinkingContent.innerHTML = renderStreamPlaceholder(t('message.waitingForOutput'));
                                 }
                                 return;
                             }
@@ -132,6 +132,11 @@ export const WEBVIEW_SCRIPT_STREAM = `
                                 phase: 'thinking',
                                 targetSegments: [],
                             };
+                        }
+
+                        // Update token usage if available
+                        if (payload.usage && typeof payload.usage.totalTokens === 'number') {
+                            updateTokenCounter(payload.usage.totalTokens);
                         }
 
                         const segments = Array.isArray(payload.segments) ? payload.segments : [];

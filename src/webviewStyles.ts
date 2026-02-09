@@ -7,6 +7,7 @@ import { TOOLBAR_STYLES } from './styles/toolbar.js';
 import { CHAT_STYLES } from './styles/chat.js';
 import { INPUT_STYLES } from './styles/input.js';
 import { HISTORY_STYLES } from './styles/history.js';
+import { SETTINGS_STYLES } from './styles/settings.js';
 
 export const WEBVIEW_STYLES = `
 <style>
@@ -15,5 +16,6 @@ ${TOOLBAR_STYLES}
 ${CHAT_STYLES}
 ${INPUT_STYLES}
 ${HISTORY_STYLES}
+${SETTINGS_STYLES}
 </style>
 `;

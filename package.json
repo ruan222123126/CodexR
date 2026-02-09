@@ -47,16 +47,6 @@
     "configuration": {
       "title": "Codex Sidebar",
       "properties": {
-        "codexSidebar.defaultProvider": {
-          "type": "string",
-          "enum": [
-            "codex",
-            "claude",
-            "pi"
-          ],
-          "default": "codex",
-          "description": "Default provider used by the chat input."
-        },
         "codexSidebar.parserMode": {
           "type": "string",
           "enum": [
@@ -76,10 +66,35 @@
           "default": true,
           "description": "Filter low-value Codex thinking lines (e.g. Planning/Preparing headings) before rendering."
         },
+        "codexSidebar.codexHideThinking": {
+          "type": "boolean",
+          "default": false,
+          "description": "Hide thinking process output for Codex. When enabled, only the final answer will be shown."
+        },
         "codexSidebar.codexAutoResumeSession": {
           "type": "boolean",
           "default": true,
           "description": "Automatically resume the previous Codex exec session for follow-up requests."
+        },
+        "codexSidebar.claudeAutoResumeSession": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically resume the previous Claude session for follow-up requests."
+        },
+        "codexSidebar.claudeDisableThinking": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disable thinking process output for Claude. When enabled, Claude will not show its reasoning process."
+        },
+        "codexSidebar.piAutoResumeSession": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically resume the previous Pi session for follow-up requests."
+        },
+        "codexSidebar.piDisableThinking": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disable thinking process output for Pi. When enabled, Pi will not show its reasoning process."
         },
         "codexSidebar.codexEnforceCheckpointPolicy": {
           "type": "boolean",
@@ -96,6 +111,40 @@
           "default": 20,
           "minimum": 1,
           "description": "Maximum number of hard checkpoint snapshots kept in extension global storage."
+        },
+        "codexSidebar.titleGenerationMode": {
+          "type": "string",
+          "enum": [
+            "currentProvider",
+            "fixedProvider",
+            "firstMessage"
+          ],
+          "enumDescriptions": [
+            "Use the current active provider (Codex/Claude/Pi) to generate session titles",
+            "Always use a fixed provider to generate session titles",
+            "Use the first user message as the session title"
+          ],
+          "default": "currentProvider",
+          "description": "How to generate session titles automatically."
+        },
+        "codexSidebar.titleFixedProvider": {
+          "type": "string",
+          "enum": [
+            "codex",
+            "claude",
+            "pi"
+          ],
+          "default": "codex",
+          "description": "The fixed provider to use for title generation when titleGenerationMode is set to 'fixedProvider'."
+        },
+        "codexSidebar.language": {
+          "type": "string",
+          "enum": [
+            "en",
+            "zh-CN"
+          ],
+          "default": "en",
+          "description": "Display language for the interface"
         }
       }
     }

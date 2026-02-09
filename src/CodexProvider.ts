@@ -9,6 +9,7 @@ import { SessionStorage } from './providers/storage';
 import { Executor, type ExecutorDeps, type ExecutorCallbacks } from './providers/executor';
 import { Config } from './providers/config';
 import { createId, createSession, getWorkspaceDir } from './providers/utils';
+import { getTranslations, normalizeLanguage, type SupportedLanguage } from './i18n';
 import type {
     ChatSession,
     NormalizedInput,
@@ -21,6 +22,7 @@ export class CodexProvider implements vscode.WebviewViewProvider {
     private _view?: vscode.WebviewView;
     private _sessions: ChatSession[] = [];
     private _activeSessionId = '';
+    private _shouldShowHome = false;
 
     private readonly sessionManager: SessionManager;
     private readonly messageHandler: MessageHandler;
@@ -36,19 +38,18 @@ export class CodexProvider implements vscode.WebviewViewProvider {
     ) {
         this.sessionStorage = new SessionStorage(
             this._context,
-            Config.getDefaultProvider,
             Config.normalizeProvider,
         );
 
         const initialState = this.sessionStorage.load(
-            () => createSession(Config.getDefaultProvider()),
+            () => createSession('codex'),
             (raw) => this.sessionStorage.parsePersistedState(raw),
         );
         this._sessions = initialState.sessions;
         this._activeSessionId = initialState.activeSessionId;
+        this._shouldShowHome = initialState.isNewWorkspace;
 
         this.sessionManager = new SessionManager(
-            Config.getDefaultProvider,
             createId,
             (type, value) => this.postToWebview(type, value),
             () => this.persistSessionStore(),
@@ -61,6 +62,10 @@ export class CodexProvider implements vscode.WebviewViewProvider {
         this.providerBuilder = new ProviderBuilder(
             createId,
             Config.shouldAutoResumeCodexSession,
+            Config.shouldAutoResumeClaudeSession,
+            Config.shouldAutoResumePiSession,
+            Config.shouldDisableClaudeThinking,
+            Config.shouldDisablePiThinking,
         );
 
         this.titleGenerator = new TitleGenerator(
@@ -140,8 +145,7 @@ export class CodexProvider implements vscode.WebviewViewProvider {
         this._view = webviewView;
         webviewView.webview.options = { enableScripts: true, localResourceRoots: [this._extensionUri] };
 
-        const defaultProvider = Config.getDefaultProvider();
-        webviewView.webview.html = getWebviewHtml(webviewView.webview, this._extensionUri, defaultProvider);
+        webviewView.webview.html = getWebviewHtml(webviewView.webview, this._extensionUri);
 
         webviewView.webview.onDidReceiveMessage(async data => {
             if (!data || typeof data !== 'object') {
@@ -230,10 +234,11 @@ export class CodexProvider implements vscode.WebviewViewProvider {
             }
 
             if (data.type === 'session-delete') {
+                const activeSession = this.getActiveSession();
                 const result = this.sessionManager.handleDeleteSession(
                     this._sessions,
                     this._activeSessionId,
-                    Config.getDefaultProvider,
+                    activeSession?.provider ?? 'codex',
                     data.value,
                 );
                 if (result.newActiveSessionId !== this._activeSessionId) {
@@ -247,10 +252,11 @@ export class CodexProvider implements vscode.WebviewViewProvider {
             }
 
             if (data.type === 'session-delete-request') {
+                const activeSession = this.getActiveSession();
                 const result = await this.sessionManager.handleDeleteSessionRequest(
                     this._sessions,
                     this._activeSessionId,
-                    Config.getDefaultProvider,
+                    activeSession?.provider ?? 'codex',
                     data.value,
                 );
                 if (result) {
@@ -271,10 +277,11 @@ export class CodexProvider implements vscode.WebviewViewProvider {
             }
 
             if (data.type === 'session-multi-delete') {
+                const activeSession = this.getActiveSession();
                 const result = await this.sessionManager.handleMultiDeleteSession(
                     this._sessions,
                     this._activeSessionId,
-                    Config.getDefaultProvider,
+                    activeSession?.provider ?? 'codex',
                     data.value,
                 );
                 if (result && result.newActiveSessionId !== this._activeSessionId) {
@@ -293,10 +300,40 @@ export class CodexProvider implements vscode.WebviewViewProvider {
                 await this.sessionManager.handleMultiExportSession(this._sessions, data.value);
                 return;
             }
+
+            if (data.type === 'settings-request') {
+                this.postToWebview('settings-data', {
+                    showToolUsageIndicator: Config.shouldShowToolUsageIndicator(),
+                    codexThinkingNoiseFilterEnabled: Config.shouldEnableCodexThinkingNoiseFilter(),
+                    codexHideThinking: Config.shouldHideCodexThinking(),
+                    codexAutoResumeSession: Config.shouldAutoResumeCodexSession(),
+                    claudeAutoResumeSession: Config.shouldAutoResumeClaudeSession(),
+                    claudeDisableThinking: Config.shouldDisableClaudeThinking(),
+                    piAutoResumeSession: Config.shouldAutoResumePiSession(),
+                    piDisableThinking: Config.shouldDisablePiThinking(),
+                    titleGenerationMode: Config.getTitleGenerationMode(),
+                    titleFixedProvider: Config.getTitleFixedProvider(),
+                    language: Config.getLanguage(),
+                });
+                return;
+            }
+
+            if (data.type === 'settings-update') {
+                const { key, value } = data.value || {};
+                if (key && value !== undefined) {
+                    await this.updateSetting(key, value);
+                    if (key === 'language') {
+                        const lang = normalizeLanguage(value);
+                        const translations = getTranslations(lang);
+                        this.postToWebview('translations-update', { language: lang, translations });
+                    }
+                }
+                return;
+            }
         });
 
         this.postToWebview('provider-init', {
-            provider: this.getActiveSession()?.provider ?? defaultProvider,
+            provider: this.getActiveSession()?.provider ?? 'codex',
             showToolUsageIndicator: Config.shouldShowToolUsageIndicator(),
             codexThinkingNoiseFilterEnabled: Config.shouldEnableCodexThinkingNoiseFilter(),
         });
@@ -316,6 +353,15 @@ export class CodexProvider implements vscode.WebviewViewProvider {
         this._view?.webview.postMessage({ type, value });
     }
 
+    private async updateSetting(key: string, value: unknown): Promise<void> {
+        const config = vscode.workspace.getConfiguration('codexSidebar');
+        try {
+            await config.update(key, value, vscode.ConfigurationTarget.Global);
+        } catch {
+            // Ignore errors
+        }
+    }
+
     private normalizeUserInput(value: unknown): NormalizedInput | null {
         if (typeof value === 'string') {
             const prompt = value.trim();
@@ -324,7 +370,7 @@ export class CodexProvider implements vscode.WebviewViewProvider {
             }
             return {
                 prompt,
-                provider: Config.getDefaultProvider(),
+                provider: this.getActiveSession()?.provider ?? 'codex',
                 attachments: [],
                 sessionId: this._activeSessionId || undefined,
             };
@@ -402,7 +448,11 @@ export class CodexProvider implements vscode.WebviewViewProvider {
     }
 
     private publishSessionState() {
-        this.sessionManager.publishSessionState(this._sessions, this._activeSessionId);
+        const showHome = this._shouldShowHome;
+        if (this._shouldShowHome) {
+            this._shouldShowHome = false;
+        }
+        this.sessionManager.publishSessionState(this._sessions, this._activeSessionId, showHome);
     }
 
     private persistSessionStore() {

@@ -107,6 +107,62 @@ export const WEBVIEW_SCRIPT_INPUT = `
                         openProviderMenu();
                     }
 
+                    // Settings select dropdown functions
+                    function closeAllSettingsSelects() {
+                        document.querySelectorAll('.settings-select-wrap.open').forEach(wrap => {
+                            wrap.classList.remove('open');
+                            wrap.classList.remove('open-up');
+                            const trigger = wrap.querySelector('.settings-select-trigger');
+                            if (trigger) {
+                                trigger.setAttribute('aria-expanded', 'false');
+                            }
+                        });
+                    }
+
+                    function toggleSettingsSelect(wrapId) {
+                        const wrap = document.getElementById(wrapId);
+                        if (!wrap) {
+                            return;
+                        }
+
+                        const isOpen = wrap.classList.contains('open');
+                        closeAllSettingsSelects();
+
+                        if (isOpen) {
+                            return;
+                        }
+
+                        const trigger = wrap.querySelector('.settings-select-trigger');
+                        const menu = wrap.querySelector('.settings-select-menu');
+                        if (!trigger || !menu) {
+                            return;
+                        }
+
+                        const triggerRect = trigger.getBoundingClientRect();
+                        const estimatedHeight = Math.max(180, menu.scrollHeight || 0);
+                        const spaceBelow = window.innerHeight - triggerRect.bottom;
+
+                        wrap.classList.toggle('open-up', spaceBelow < estimatedHeight);
+                        wrap.classList.add('open');
+                        trigger.setAttribute('aria-expanded', 'true');
+                    }
+
+                    function updateSettingsSelectDisplay(selectId, value, labelText) {
+                        const label = document.getElementById(selectId + '-label');
+                        const menu = document.getElementById(selectId + '-menu');
+                        if (label && labelText) {
+                            label.textContent = labelText;
+                        }
+                        if (menu) {
+                            menu.querySelectorAll('.settings-select-option').forEach(option => {
+                                const optionValue = option.getAttribute('data-settings-option');
+                                const selected = optionValue === value;
+                                option.setAttribute('data-selected', selected ? 'true' : 'false');
+                                option.setAttribute('aria-selected', selected ? 'true' : 'false');
+                            });
+                        }
+                    }
+
                     function formatHistoryTime(timestamp) {
                         const value = Number(timestamp);
                         if (!Number.isFinite(value) || value <= 0) {
@@ -115,19 +171,19 @@ export const WEBVIEW_SCRIPT_INPUT = `
 
                         const deltaMs = Math.max(0, Date.now() - value);
                         if (deltaMs < 60 * 1000) {
-                            return 'JUST NOW';
+                            return t('history.justNow');
                         }
 
                         if (deltaMs < 60 * 60 * 1000) {
-                            return Math.floor(deltaMs / (60 * 1000)) + ' MIN AGO';
+                            return Math.floor(deltaMs / (60 * 1000)) + t('history.minAgo');
                         }
 
                         if (deltaMs < 24 * 60 * 60 * 1000) {
-                            return Math.floor(deltaMs / (60 * 60 * 1000)) + ' H AGO';
+                            return Math.floor(deltaMs / (60 * 60 * 1000)) + t('history.hAgo');
                         }
 
                         if (deltaMs < 30 * 24 * 60 * 60 * 1000) {
-                            return Math.floor(deltaMs / (24 * 60 * 60 * 1000)) + ' D AGO';
+                            return Math.floor(deltaMs / (24 * 60 * 60 * 1000)) + t('history.dAgo');
                         }
 
                         return new Date(value).toISOString().slice(0, 10);
@@ -178,7 +234,8 @@ export const WEBVIEW_SCRIPT_INPUT = `
 
                         if (historyMultiSelectBtn) {
                             historyMultiSelectBtn.setAttribute('aria-pressed', isMultiSelectMode ? 'true' : 'false');
-                            historyMultiSelectBtn.title = isMultiSelectMode ? '退出多选' : '多选';
+                            historyMultiSelectBtn.title = isMultiSelectMode ? t('history.exitMultiSelect') : t('history.multiSelect');
+                            historyMultiSelectBtn.style.display = isMultiSelectMode ? 'none' : 'inline-flex';
                         }
 
                         if (historyMultiActions) {
@@ -233,21 +290,22 @@ export const WEBVIEW_SCRIPT_INPUT = `
 
                         const historySessions = getHistorySessions();
                         if (historySortBtn) {
-                            historySortBtn.textContent = historySortValue === 'updated-asc' ? 'Oldest' : 'Newest';
+                            historySortBtn.textContent = historySortValue === 'updated-asc' ? t('history.sortOldest') : t('history.sortNewest');
                         }
 
                         if (historySessions.length === 0) {
-                            historyList.innerHTML = '<div class="history-empty">No sessions found.</div>';
+                            historyList.innerHTML = '<div class="history-empty">' + t('history.noSessions') + '</div>';
                             return;
                         }
 
                         historyList.innerHTML = historySessions.map(session => {
                             const sessionId = escapeHtml(session && session.id ? session.id : '');
-                            const title = escapeHtml(session && session.title ? session.title : 'Untitled');
+                            const title = escapeHtml(session && session.title ? session.title : t('history.untitled'));
                             const provider = escapeHtml(getProviderLabel(session && session.provider ? session.provider : 'codex'));
                             const previewSource = String(session && session.previewText ? session.previewText : '').trim();
-                            const preview = escapeHtml(previewSource || 'No messages yet.');
-                            const messageCount = Math.max(0, Number(session && session.messageCount ? session.messageCount : 0) || 0);
+                            const preview = escapeHtml(previewSource || t('history.noMessages'));
+                            const workspacePath = session && session.workspacePath ? session.workspacePath : '';
+                            const folderName = workspacePath ? workspacePath.split(/[\\/]/).pop() || workspacePath : '';
                             const timeLabel = escapeHtml(formatHistoryTime(session && session.updatedAt ? session.updatedAt : 0));
                             const activeClass = session && session.id === activeSessionId ? ' active' : '';
                             const selected = Boolean(session && selectedSessionIds.has(session.id));
@@ -258,26 +316,28 @@ export const WEBVIEW_SCRIPT_INPUT = `
 
                             return [
                                 '<div class="history-item' + activeClass + '" data-session-id="' + sessionId + '">',
-                                '  <button class="' + checkboxClass + '" data-history-checkbox="true" data-session-id="' + sessionId + '" title="Select session" aria-label="Select session">',
+                                '  <button class="' + checkboxClass + '" data-history-checkbox="true" data-session-id="' + sessionId + '" title="' + t('history.selectSession') + '" aria-label="' + t('history.selectSession') + '">',
                                 '    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">',
                                 '      <polyline points="3.5 8.5 6.8 11.5 12.5 5"></polyline>',
                                 '    </svg>',
                                 '  </button>',
                                 '  <div class="history-item-title-row">',
                                 '    <div class="history-item-title">' + title + '</div>',
-                                '    <div class="history-item-meta">',
-                                '      <span class="history-item-model">' + provider + '</span>',
-                                '      <span class="history-item-count">MSG ' + messageCount + '</span>',
-                                '    </div>',
+                                '    <span class="history-item-model">' + provider + '</span>',
                                 '  </div>',
                                 '  <div class="history-item-preview">' + preview + '</div>',
-                                timeLabel
-                                    ? ('  <div class="history-item-time">' + timeLabel + '</div>')
+                                '  <div class="history-item-footer">',
+                                folderName
+                                    ? '    <div class="history-item-folder" title="' + escapeHtml(workspacePath) + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>' + escapeHtml(folderName) + '</div>'
                                     : '',
+                                timeLabel
+                                    ? '    <div class="history-item-time"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>' + timeLabel + '</div>'
+                                    : '',
+                                '  </div>',
                                 '  <div class="history-item-actions">',
-                                '    <button class="history-item-action-btn" data-history-action="rename" data-session-id="' + sessionId + '" title="Rename session">✎</button>',
-                                '    <button class="history-item-action-btn" data-history-action="export" data-session-id="' + sessionId + '" title="Export session">⇩</button>',
-                                '    <button class="history-item-action-btn" data-history-action="delete" data-session-id="' + sessionId + '" title="Delete session">🗑</button>',
+                                '    <button class="history-item-action-btn" data-history-action="rename" data-session-id="' + sessionId + '" title="' + t('history.renameSession') + '">✎</button>',
+                                '    <button class="history-item-action-btn" data-history-action="export" data-session-id="' + sessionId + '" title="' + t('history.exportSession') + '">⇩</button>',
+                                '    <button class="history-item-action-btn" data-history-action="delete" data-session-id="' + sessionId + '" title="' + t('history.deleteSession') + '">🗑</button>',
                                 '  </div>',
                                 activeIndicator,
                                 '</div>',
@@ -292,6 +352,10 @@ export const WEBVIEW_SCRIPT_INPUT = `
                             setMultiSelectMode(false);
                         }
 
+                        if (historyMode) {
+                            setSettingsMode(false);
+                        }
+
                         document.body.classList.toggle('history-mode', historyMode);
 
                         if (historyPage) {
@@ -303,6 +367,146 @@ export const WEBVIEW_SCRIPT_INPUT = `
                         }
                     }
 
+                    function setSettingsMode(enabled) {
+                        settingsMode = Boolean(enabled);
+
+                        if (settingsMode) {
+                            setHistoryMode(false);
+                        }
+
+                        document.body.classList.toggle('settings-mode', settingsMode);
+
+                        if (settingsPage) {
+                            settingsPage.setAttribute('aria-hidden', settingsMode ? 'false' : 'true');
+                        }
+
+                        if (settingsMode) {
+                            vscode.postMessage({ type: 'settings-request' });
+                        }
+                    }
+
+                    function updateSettingsUi(settings) {
+                        if (settingsLanguage && settings.language) {
+                            settingsLanguage.value = settings.language;
+                            const langLabels = { en: 'English', 'zh-CN': '简体中文' };
+                            updateSettingsSelectDisplay('settings-language', settings.language, langLabels[settings.language] || settings.language);
+                        }
+                        if (settingsShowToolIndicator) {
+                            settingsShowToolIndicator.checked = settings.showToolUsageIndicator !== false;
+                        }
+                        if (settingsThinkingFilter) {
+                            settingsThinkingFilter.checked = settings.codexThinkingNoiseFilterEnabled !== false;
+                        }
+                        if (settingsCodexHideThinking) {
+                            settingsCodexHideThinking.checked = settings.codexHideThinking === true;
+                        }
+                        if (settingsClaudeDisableThinking) {
+                            settingsClaudeDisableThinking.checked = settings.claudeDisableThinking === true;
+                        }
+                        if (settingsPiDisableThinking) {
+                            settingsPiDisableThinking.checked = settings.piDisableThinking === true;
+                        }
+                        if (settingsCodexAutoResume) {
+                            settingsCodexAutoResume.checked = settings.codexAutoResumeSession !== false;
+                        }
+                        if (settingsClaudeAutoResume) {
+                            settingsClaudeAutoResume.checked = settings.claudeAutoResumeSession !== false;
+                        }
+                        if (settingsPiAutoResume) {
+                            settingsPiAutoResume.checked = settings.piAutoResumeSession !== false;
+                        }
+                        if (settingsTitleMode && settings.titleGenerationMode) {
+                            settingsTitleMode.value = settings.titleGenerationMode;
+                            const titleModeLabels = {
+                                currentProvider: t('settings.titleModeCurrentProvider'),
+                                fixedProvider: t('settings.titleModeFixedProvider'),
+                                firstMessage: t('settings.titleModeFirstMessage')
+                            };
+                            updateSettingsSelectDisplay('settings-title-mode', settings.titleGenerationMode, titleModeLabels[settings.titleGenerationMode] || settings.titleGenerationMode);
+                        }
+                        if (settingsTitleFixedProvider && settings.titleFixedProvider) {
+                            settingsTitleFixedProvider.value = settings.titleFixedProvider;
+                            const providerLabels = { codex: 'Codex', claude: 'Claude', pi: 'Pi' };
+                            updateSettingsSelectDisplay('settings-title-fixed-provider', settings.titleFixedProvider, providerLabels[settings.titleFixedProvider] || settings.titleFixedProvider);
+                        }
+                        if (settingsTitleFixedProviderItem) {
+                            settingsTitleFixedProviderItem.style.display = settings.titleGenerationMode === 'fixedProvider' ? 'flex' : 'none';
+                        }
+                    }
+
+                    function t(key) {
+                        return translations[key] || key;
+                    }
+
+                    function applyTranslations(newTranslations) {
+                        translations = newTranslations || translations;
+
+                        document.querySelectorAll('[data-i18n]').forEach(el => {
+                            const key = el.getAttribute('data-i18n');
+                            if (key && translations[key]) {
+                                el.textContent = translations[key];
+                            }
+                        });
+
+                        document.querySelectorAll('[data-i18n-title]').forEach(el => {
+                            const key = el.getAttribute('data-i18n-title');
+                            if (key && translations[key]) {
+                                el.setAttribute('title', translations[key]);
+                            }
+                        });
+
+                        document.querySelectorAll('[data-i18n-aria-label]').forEach(el => {
+                            const key = el.getAttribute('data-i18n-aria-label');
+                            if (key && translations[key]) {
+                                el.setAttribute('aria-label', translations[key]);
+                            }
+                        });
+
+                        document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+                            const key = el.getAttribute('data-i18n-placeholder');
+                            if (key && translations[key]) {
+                                el.setAttribute('placeholder', translations[key]);
+                            }
+                        });
+
+                        if (!isThinking && statusText) {
+                            statusText.innerHTML = '<span class="status-dot"></span> ' + t('status.ready');
+                        }
+
+                        if (recentTasksToggleBtn) {
+                            const toggleTitleKey = recentTasksCollapsed
+                                ? 'input.expandRecentTasks'
+                                : 'input.collapseRecentTasks';
+                            const toggleTitle = t(toggleTitleKey);
+                            recentTasksToggleBtn.setAttribute('title', toggleTitle);
+                            recentTasksToggleBtn.setAttribute('aria-label', toggleTitle);
+                        }
+                    }
+
+                    function updateRecentTasksCollapsedState() {
+                        if (!recentTasksPanel) {
+                            return;
+                        }
+
+                        recentTasksPanel.classList.toggle('collapsed', recentTasksCollapsed);
+
+                        if (recentTasksToggleBtn) {
+                            recentTasksToggleBtn.setAttribute('aria-expanded', recentTasksCollapsed ? 'false' : 'true');
+                            const toggleTitleKey = recentTasksCollapsed
+                                ? 'input.expandRecentTasks'
+                                : 'input.collapseRecentTasks';
+                            const toggleTitle = t(toggleTitleKey);
+                            recentTasksToggleBtn.setAttribute('title', toggleTitle);
+                            recentTasksToggleBtn.setAttribute('aria-label', toggleTitle);
+
+                        }
+                    }
+
+                    function toggleRecentTasksCollapsed() {
+                        recentTasksCollapsed = !recentTasksCollapsed;
+                        updateRecentTasksCollapsedState();
+                    }
+
                     function setHomeMode(enabled) {
                         isHomeMode = Boolean(enabled);
                         document.body.classList.toggle('home-mode', isHomeMode);
@@ -310,6 +514,10 @@ export const WEBVIEW_SCRIPT_INPUT = `
                         if (isHomeMode) {
                             renderRecentTasks();
                             container.innerHTML = '';
+                            if (toolbarTitle) {
+                                toolbarTitle.textContent = HOME_TITLE;
+                            }
+                            resetTokenCounter();
                         }
                     }
 
@@ -328,13 +536,13 @@ export const WEBVIEW_SCRIPT_INPUT = `
                         const topSessions = recentSessions.slice(0, 5);
 
                         if (topSessions.length === 0) {
-                            recentTasksList.innerHTML = '<div class="recent-tasks-empty">No recent tasks</div>';
+                            recentTasksList.innerHTML = '<div class="recent-tasks-empty">' + t('input.noRecentTasks') + '</div>';
                             return;
                         }
 
                         recentTasksList.innerHTML = topSessions.map(session => {
                             const sessionId = escapeHtml(session && session.id ? session.id : '');
-                            const title = escapeHtml(session && session.title ? session.title : 'Untitled');
+                            const title = escapeHtml(session && session.title ? session.title : t('history.untitled'));
                             const provider = escapeHtml(getProviderLabel(session && session.provider ? session.provider : 'codex'));
                             const timeLabel = escapeHtml(formatHistoryTime(session && session.updatedAt ? session.updatedAt : 0));
 
@@ -466,7 +674,7 @@ export const WEBVIEW_SCRIPT_INPUT = `
                                 let html = '';
                                 if (thought && thought.length > 5) {
                                     const thinkingHtml = renderThinkingContent(thought);
-                                    html += '<details class="thinking-block"><summary>Thinking Process</summary><div class="thinking-content">' + thinkingHtml + '</div></details>';
+                                    html += '<details class="thinking-block"><summary>' + t('message.thinkingProcess') + '</summary><div class="thinking-content">' + thinkingHtml + '</div></details>';
                                 }
                                 if (content) {
                                     html += '<div class="answer-block">' + renderMarkdownSafe(content) + '</div>';
@@ -535,7 +743,7 @@ export const WEBVIEW_SCRIPT_INPUT = `
                                 phase: 'thinking',
                                 targetSegments: [],
                             };
-                            activeStreamElements.thinkingContent.innerHTML = renderStreamPlaceholder('Waiting for first output');
+                            activeStreamElements.thinkingContent.innerHTML = renderStreamPlaceholder(t('message.waitingForOutput'));
                             setThinkingState(true);
                             return;
                         }
@@ -581,12 +789,12 @@ export const WEBVIEW_SCRIPT_INPUT = `
                                     activeStreamElements.details.open = false;
                                     if (activeStreamElements.answerBlock.style.display === 'none') {
                                         activeStreamElements.answerBlock.style.display = '';
-                                        activeStreamElements.answerBlock.innerHTML = renderMarkdownSafe('Request canceled.');
+                                        activeStreamElements.answerBlock.innerHTML = renderMarkdownSafe(t('message.requestCanceled'));
                                     }
                                 }
                                 if (data.timedOut && activeStreamElements.answerBlock.style.display === 'none') {
                                     activeStreamElements.answerBlock.style.display = '';
-                                    activeStreamElements.answerBlock.innerHTML = renderMarkdownSafe('Request timed out.');
+                                    activeStreamElements.answerBlock.innerHTML = renderMarkdownSafe(t('message.requestTimedOut'));
                                     activeStreamElements.details.open = false;
                                 }
                                 if (data.error && activeStreamElements.answerBlock.style.display === 'none') {
@@ -613,7 +821,7 @@ export const WEBVIEW_SCRIPT_INPUT = `
                         }
 
                         if (type === 'session-error') {
-                            const text = data && data.message ? String(data.message) : 'Session operation failed.';
+                            const text = data && data.message ? String(data.message) : t('message.sessionOperationFailed');
                             showHintMessage(text, 3000);
                             return;
                         }
@@ -631,7 +839,7 @@ export const WEBVIEW_SCRIPT_INPUT = `
 
                             if (data.thought && data.thought.length > 5) {
                                 const thinkingHtml = renderThinkingContent(data.thought);
-                                html += '<details class="thinking-block"><summary>Thinking Process</summary><div class="thinking-content">' + thinkingHtml + '</div></details>';
+                                html += '<details class="thinking-block"><summary>' + t('message.thinkingProcess') + '</summary><div class="thinking-content">' + thinkingHtml + '</div></details>';
                             }
 
                             html += '<div class="answer-block">' + renderMarkdownSafe(data.content) + '</div>';
@@ -689,17 +897,236 @@ export const WEBVIEW_SCRIPT_INPUT = `
                         });
                     }
 
+                    if (recentTasksToggleBtn) {
+                        recentTasksToggleBtn.addEventListener('click', event => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            toggleRecentTasksCollapsed();
+                        });
+                    }
+
                     if (historyBackBtn) {
                         historyBackBtn.addEventListener('click', () => {
                             setHistoryMode(false);
                         });
                     }
 
+                    if (settingsBtn) {
+                        settingsBtn.addEventListener('click', () => {
+                            setSettingsMode(true);
+                        });
+                    }
+
+                    if (settingsBackBtn) {
+                        settingsBackBtn.addEventListener('click', () => {
+                            setSettingsMode(false);
+                        });
+                    }
+
+                    // Settings select trigger click handlers
+                    if (settingsLanguageTrigger) {
+                        settingsLanguageTrigger.addEventListener('click', event => {
+                            event.preventDefault();
+                            toggleSettingsSelect('settings-language-wrap');
+                        });
+                    }
+
+                    if (settingsTitleModeTrigger) {
+                        settingsTitleModeTrigger.addEventListener('click', event => {
+                            event.preventDefault();
+                            toggleSettingsSelect('settings-title-mode-wrap');
+                        });
+                    }
+
+                    if (settingsTitleFixedProviderTrigger) {
+                        settingsTitleFixedProviderTrigger.addEventListener('click', event => {
+                            event.preventDefault();
+                            toggleSettingsSelect('settings-title-fixed-provider-wrap');
+                        });
+                    }
+
+                    // Settings select option click handlers
+                    document.querySelectorAll('.settings-select-option').forEach(option => {
+                        option.addEventListener('click', event => {
+                            event.preventDefault();
+                            event.stopPropagation();
+
+                            const selectType = option.getAttribute('data-settings-select');
+                            const value = option.getAttribute('data-settings-option');
+                            if (!selectType || !value) {
+                                return;
+                            }
+
+                            let nativeSelect = null;
+                            let labelText = '';
+                            let settingsKey = '';
+
+                            if (selectType === 'language') {
+                                nativeSelect = settingsLanguage;
+                                settingsKey = 'language';
+                                const langLabels = { en: 'English', 'zh-CN': '简体中文' };
+                                labelText = langLabels[value] || value;
+                            } else if (selectType === 'title-mode') {
+                                nativeSelect = settingsTitleMode;
+                                settingsKey = 'titleGenerationMode';
+                                const titleModeLabels = {
+                                    currentProvider: t('settings.titleModeCurrentProvider'),
+                                    fixedProvider: t('settings.titleModeFixedProvider'),
+                                    firstMessage: t('settings.titleModeFirstMessage')
+                                };
+                                labelText = titleModeLabels[value] || value;
+                            } else if (selectType === 'title-fixed-provider') {
+                                nativeSelect = settingsTitleFixedProvider;
+                                settingsKey = 'titleFixedProvider';
+                                const providerLabels = { codex: 'Codex', claude: 'Claude', pi: 'Pi' };
+                                labelText = providerLabels[value] || value;
+                            }
+
+                            if (nativeSelect) {
+                                nativeSelect.value = value;
+                                nativeSelect.dispatchEvent(new Event('change'));
+                            }
+
+                            updateSettingsSelectDisplay('settings-' + selectType, value, labelText);
+                            closeAllSettingsSelects();
+                        });
+                    });
+
+                    // Close settings selects when clicking outside
+                    document.addEventListener('click', event => {
+                        const target = event.target;
+                        if (!target.closest('.settings-select-wrap')) {
+                            closeAllSettingsSelects();
+                        }
+                    });
+
+                    if (settingsLanguage) {
+                        settingsLanguage.addEventListener('change', () => {
+                            vscode.postMessage({
+                                type: 'settings-update',
+                                value: { key: 'language', value: settingsLanguage.value },
+                            });
+                        });
+                    }
+
+                    if (settingsShowToolIndicator) {
+                        settingsShowToolIndicator.addEventListener('change', () => {
+                            vscode.postMessage({
+                                type: 'settings-update',
+                                value: { key: 'showToolUsageIndicator', value: settingsShowToolIndicator.checked },
+                            });
+                        });
+                    }
+
+                    if (settingsThinkingFilter) {
+                        settingsThinkingFilter.addEventListener('change', () => {
+                            vscode.postMessage({
+                                type: 'settings-update',
+                                value: { key: 'codexThinkingNoiseFilterEnabled', value: settingsThinkingFilter.checked },
+                            });
+                        });
+                    }
+
+                    if (settingsCodexHideThinking) {
+                        settingsCodexHideThinking.addEventListener('change', () => {
+                            vscode.postMessage({
+                                type: 'settings-update',
+                                value: { key: 'codexHideThinking', value: settingsCodexHideThinking.checked },
+                            });
+                        });
+                    }
+
+                    if (settingsClaudeDisableThinking) {
+                        settingsClaudeDisableThinking.addEventListener('change', () => {
+                            vscode.postMessage({
+                                type: 'settings-update',
+                                value: { key: 'claudeDisableThinking', value: settingsClaudeDisableThinking.checked },
+                            });
+                        });
+                    }
+
+                    if (settingsPiDisableThinking) {
+                        settingsPiDisableThinking.addEventListener('change', () => {
+                            vscode.postMessage({
+                                type: 'settings-update',
+                                value: { key: 'piDisableThinking', value: settingsPiDisableThinking.checked },
+                            });
+                        });
+                    }
+
+                    if (settingsCodexAutoResume) {
+                        settingsCodexAutoResume.addEventListener('change', () => {
+                            vscode.postMessage({
+                                type: 'settings-update',
+                                value: { key: 'codexAutoResumeSession', value: settingsCodexAutoResume.checked },
+                            });
+                        });
+                    }
+
+                    if (settingsClaudeAutoResume) {
+                        settingsClaudeAutoResume.addEventListener('change', () => {
+                            vscode.postMessage({
+                                type: 'settings-update',
+                                value: { key: 'claudeAutoResumeSession', value: settingsClaudeAutoResume.checked },
+                            });
+                        });
+                    }
+
+                    if (settingsPiAutoResume) {
+                        settingsPiAutoResume.addEventListener('change', () => {
+                            vscode.postMessage({
+                                type: 'settings-update',
+                                value: { key: 'piAutoResumeSession', value: settingsPiAutoResume.checked },
+                            });
+                        });
+                    }
+
+                    if (settingsTitleMode) {
+                        settingsTitleMode.addEventListener('change', () => {
+                            vscode.postMessage({
+                                type: 'settings-update',
+                                value: { key: 'titleGenerationMode', value: settingsTitleMode.value },
+                            });
+                            if (settingsTitleFixedProviderItem) {
+                                settingsTitleFixedProviderItem.style.display = settingsTitleMode.value === 'fixedProvider' ? 'flex' : 'none';
+                            }
+                        });
+                    }
+
+                    if (settingsTitleFixedProvider) {
+                        settingsTitleFixedProvider.addEventListener('change', () => {
+                            vscode.postMessage({
+                                type: 'settings-update',
+                                value: { key: 'titleFixedProvider', value: settingsTitleFixedProvider.value },
+                            });
+                        });
+                    }
+
                     if (historySearchInput) {
+                        const historySearchContainer = historySearchInput.closest('.history-search-container');
+                        const historySearchClear = historySearchContainer ? historySearchContainer.querySelector('.history-search-clear') : null;
+
+                        function updateSearchContainerState() {
+                            if (historySearchContainer) {
+                                historySearchContainer.classList.toggle('has-value', Boolean(historySearchInput.value));
+                            }
+                        }
+
                         historySearchInput.addEventListener('input', () => {
                             historySearchText = historySearchInput.value || '';
+                            updateSearchContainerState();
                             renderHistoryList();
                         });
+
+                        if (historySearchClear) {
+                            historySearchClear.addEventListener('click', () => {
+                                historySearchInput.value = '';
+                                historySearchText = '';
+                                updateSearchContainerState();
+                                renderHistoryList();
+                                historySearchInput.focus();
+                            });
+                        }
                     }
 
                     if (historySortBtn) {
@@ -751,6 +1178,19 @@ export const WEBVIEW_SCRIPT_INPUT = `
                         });
                     }
 
+                    if (historyMultiSelectAllBtn) {
+                        historyMultiSelectAllBtn.addEventListener('click', () => {
+                            const historySessions = getHistorySessions();
+                            historySessions.forEach(session => {
+                                if (session && session.id) {
+                                    selectedSessionIds.add(session.id);
+                                }
+                            });
+                            updateMultiSelectUi();
+                            renderHistoryList();
+                        });
+                    }
+
                     if (historyList) {
                         historyList.addEventListener('click', event => {
                             const target = event.target;
@@ -793,9 +1233,7 @@ export const WEBVIEW_SCRIPT_INPUT = `
                                 return;
                             }
 
-                            if (sessionId !== activeSessionId) {
-                                vscode.postMessage({ type: 'session-switch', value: { sessionId } });
-                            }
+                            vscode.postMessage({ type: 'session-switch', value: { sessionId } });
                             setHistoryMode(false);
                         });
                     }
@@ -828,7 +1266,7 @@ export const WEBVIEW_SCRIPT_INPUT = `
                             const nextProvider = normalizeProvider(providerSelect.value);
                             setNewSessionProvider(nextProvider);
 
-                            if (activeSessionId && currentProvider !== nextProvider) {
+                            if (!isHomeMode && activeSessionId && currentProvider !== nextProvider) {
                                 vscode.postMessage({
                                     type: 'session-provider-update',
                                     value: { sessionId: activeSessionId, provider: nextProvider },
@@ -851,7 +1289,7 @@ export const WEBVIEW_SCRIPT_INPUT = `
                             }
                             const title = nextTitle.trim();
                             if (!title) {
-                                showHintMessage('Session title cannot be empty', 2200);
+                                showHintMessage(t('message.emptyTitleError'), 2200);
                                 return;
                             }
 
@@ -944,11 +1382,25 @@ export const WEBVIEW_SCRIPT_INPUT = `
                         if (msg.type === 'session-active') {
                             const value = msg.value || {};
                             const session = value.session || null;
+                            const showHome = value.showHome === true;
+
+                            if (showHome) {
+                                setHomeMode(true);
+                                if (toolbarTitle) {
+                                    toolbarTitle.textContent = HOME_TITLE;
+                                }
+                                return;
+                            }
+
                             if (!session) {
                                 activeSessionId = '';
                                 sessionMessages = [];
                                 renderSessionOptions();
                                 renderChatMessages([]);
+                                if (toolbarTitle) {
+                                    toolbarTitle.textContent = HOME_TITLE;
+                                }
+                                resetTokenCounter();
                                 return;
                             }
 
@@ -962,6 +1414,9 @@ export const WEBVIEW_SCRIPT_INPUT = `
                             selectedAttachments = [];
                             renderAttachments();
                             setHomeMode(false);
+                            if (toolbarTitle) {
+                                toolbarTitle.textContent = session.title || HOME_TITLE;
+                            }
                             return;
                         }
 
@@ -972,7 +1427,22 @@ export const WEBVIEW_SCRIPT_INPUT = `
                             const mergeResult = mergeAttachments(attachments);
                             renderAttachments();
                             if (mergeResult.hiddenByLimit > 0) {
-                                showHintMessage('Only first 8 attachments kept', 2500);
+                                showHintMessage(t('message.attachmentLimitHint'), 2500);
+                            }
+                            return;
+                        }
+
+                        if (msg.type === 'settings-data') {
+                            const settings = msg.value || {};
+                            updateSettingsUi(settings);
+                            return;
+                        }
+
+                        if (msg.type === 'translations-update') {
+                            const value = msg.value || {};
+                            if (value.translations) {
+                                currentLanguage = value.language || currentLanguage;
+                                applyTranslations(value.translations);
                             }
                             return;
                         }
@@ -981,4 +1451,5 @@ export const WEBVIEW_SCRIPT_INPUT = `
                     });
 
                     vscode.postMessage({ type: 'session-list-request' });
+                    updateRecentTasksCollapsedState();
 `;

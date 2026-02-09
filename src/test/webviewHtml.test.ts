@@ -68,5 +68,5 @@ function buildHtml(): string {
         },
     } as unknown as vscode.Webview;
 
-    return getWebviewHtml(fakeWebview, vscode.Uri.file('/tmp/codexr-test-extension'), 'codex');
+    return getWebviewHtml(fakeWebview, vscode.Uri.file('/tmp/codexr-test-extension'));
 }

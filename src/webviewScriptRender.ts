@@ -1,4 +1,69 @@
 export const WEBVIEW_SCRIPT_RENDER = `
+                    // 格式化 token 数量显示
+                    function formatTokenCount(count) {
+                        if (count >= 1000000) {
+                            return (count / 1000000).toFixed(1) + 'M';
+                        }
+                        if (count >= 1000) {
+                            return (count / 1000).toFixed(1) + 'k';
+                        }
+                        return String(count);
+                    }
+
+                    // 获取 token 使用量级别
+                    function getTokenLevel(count) {
+                        // 基于 Claude 的上下文窗口大小 (200k tokens)
+                        if (count < 50000) return 'low';
+                        if (count < 100000) return 'medium';
+                        if (count < 150000) return 'high';
+                        return 'critical';
+                    }
+
+                    // 更新 token 计数器显示
+                    function updateTokenCounter(totalTokens) {
+                        if (!tokenCounter || !tokenCounterValue) {
+                            return;
+                        }
+
+                        currentTokenUsage = totalTokens;
+
+                        if (totalTokens > 0) {
+                            tokenCounter.classList.add('visible');
+                            tokenCounterValue.textContent = formatTokenCount(totalTokens);
+
+                            // 更新级别样式
+                            const level = getTokenLevel(totalTokens);
+                            tokenCounter.classList.remove('level-low', 'level-medium', 'level-high', 'level-critical');
+                            tokenCounter.classList.add('level-' + level);
+                        } else {
+                            tokenCounter.classList.remove('visible');
+                        }
+                    }
+
+                    // 重置 token 计数器
+                    function resetTokenCounter() {
+                        if (!tokenCounter || !tokenCounterValue) {
+                            return;
+                        }
+                        currentTokenUsage = 0;
+                        tokenCounter.classList.remove('visible', 'level-low', 'level-medium', 'level-high', 'level-critical');
+                        tokenCounterValue.textContent = '0';
+                    }
+
+                    // 应用思考摘要到summary元素
+                    function applyThinkingSummary(details, summary, thoughtText, segments) {
+                        const toolCount = countToolUsage(segments, thoughtText);
+                        const hasTools = toolCount > 0;
+
+                        details.classList.toggle('has-tools', hasTools);
+
+                        if (hasTools && showToolUsageIndicator) {
+                            summary.innerHTML = t('message.thinkingProcess') + ' <span class="thinking-tool-count">' + toolCount + '</span>';
+                        } else {
+                            summary.textContent = t('message.thinkingProcess');
+                        }
+                    }
+
                     // 更新UI为思考状态
                     function setThinkingState(thinking) {
                         isThinking = thinking;
@@ -6,7 +71,7 @@ export const WEBVIEW_SCRIPT_RENDER = `
                         if (thinking) {
                             inputContainer.classList.add('thinking');
                             inputBox.disabled = true;
-                            inputBox.placeholder = 'AI is processing...';
+                            inputBox.placeholder = t('input.placeholderThinking');
                             addBtn.disabled = true;
                             if (providerSelect) {
                                 providerSelect.disabled = true;
@@ -34,12 +99,12 @@ export const WEBVIEW_SCRIPT_RENDER = `
                                 sendBtnContent.appendChild(bg);
                             }
 
-                            statusText.innerHTML = '<span class="status-dot"></span> Thinking';
-                            hintText.textContent = 'Click to stop';
+                            statusText.innerHTML = '<span class="status-dot"></span> ' + t('status.thinking');
+                            hintText.textContent = t('status.clickToStop');
                         } else {
                             inputContainer.classList.remove('thinking');
                             inputBox.disabled = false;
-                            inputBox.placeholder = 'Ask anything...';
+                            inputBox.placeholder = t('input.placeholder');
                             addBtn.disabled = false;
                             if (providerSelect) {
                                 providerSelect.disabled = false;
@@ -65,7 +130,7 @@ export const WEBVIEW_SCRIPT_RENDER = `
                             const bg = sendBtnContent.querySelector('.obsidian-send-btn-thinking-bg');
                             if (bg) bg.remove();
 
-                            statusText.innerHTML = '<span class="status-dot"></span> Ready';
+                            statusText.innerHTML = '<span class="status-dot"></span> ' + t('status.ready');
                             hintText.textContent = '';
                         }
                     }
@@ -128,21 +193,123 @@ export const WEBVIEW_SCRIPT_RENDER = `
                         ].join('');
                     }
 
+                    function renderToolUseCard(entry) {
+                        const toolName = entry.name || 'Tool';
+                        let inputDisplay = '';
+                        let secondaryInfo = '';
+
+                        // Tool icon mapping
+                        const toolIcons = {
+                            'Read': '📄',
+                            'Write': '✏️',
+                            'Edit': '🔧',
+                            'Bash': '⚡',
+                            'Grep': '🔍',
+                            'Glob': '📁',
+                            'WebFetch': '🌐',
+                            'WebSearch': '🔎',
+                            'Task': '📋',
+                            'TodoWrite': '✅',
+                        };
+                        const icon = toolIcons[toolName] || '🔧';
+
+                        // Try to parse and format the input JSON
+                        if (entry.input) {
+                            try {
+                                const parsed = JSON.parse(entry.input);
+                                // Extract key info based on tool type
+                                if (toolName === 'Bash' && parsed.command) {
+                                    inputDisplay = parsed.command;
+                                    if (parsed.description) {
+                                        secondaryInfo = parsed.description;
+                                    }
+                                } else if ((toolName === 'Read' || toolName === 'Write' || toolName === 'Edit') && parsed.file_path) {
+                                    inputDisplay = parsed.file_path;
+                                } else if (toolName === 'Grep' && parsed.pattern) {
+                                    inputDisplay = parsed.pattern;
+                                    if (parsed.path) {
+                                        secondaryInfo = parsed.path;
+                                    }
+                                } else if (toolName === 'Glob' && parsed.pattern) {
+                                    inputDisplay = parsed.pattern;
+                                    if (parsed.path) {
+                                        secondaryInfo = parsed.path;
+                                    }
+                                } else if (toolName === 'WebFetch' && parsed.url) {
+                                    inputDisplay = parsed.url;
+                                } else if (toolName === 'WebSearch' && parsed.query) {
+                                    inputDisplay = parsed.query;
+                                } else if (toolName === 'Task' && parsed.description) {
+                                    inputDisplay = parsed.description;
+                                    if (parsed.subagent_type) {
+                                        secondaryInfo = parsed.subagent_type;
+                                    }
+                                } else {
+                                    // Fallback: show first key-value pair
+                                    const keys = Object.keys(parsed);
+                                    if (keys.length > 0) {
+                                        const firstKey = keys[0];
+                                        const firstValue = String(parsed[firstKey] || '');
+                                        inputDisplay = firstValue.length > 100 ? firstValue.slice(0, 100) + '...' : firstValue;
+                                    }
+                                }
+                            } catch {
+                                // If JSON parsing fails, show raw input (truncated)
+                                inputDisplay = entry.input.length > 100 ? entry.input.slice(0, 100) + '...' : entry.input;
+                            }
+                        }
+
+                        // Build the card with border-box style
+                        const lines = [
+                            '<div class="tool-card">',
+                            '  <div class="tool-card-header">',
+                            '    <span class="tool-card-icon">' + icon + '</span>',
+                            '    <span class="tool-card-name">' + escapeHtml(toolName) + '</span>',
+                            '  </div>',
+                        ];
+
+                        if (inputDisplay) {
+                            lines.push('  <div class="tool-card-content">' + escapeHtml(inputDisplay) + '</div>');
+                        }
+
+                        if (secondaryInfo) {
+                            lines.push('  <div class="tool-card-secondary">' + escapeHtml(secondaryInfo) + '</div>');
+                        }
+
+                        lines.push('</div>');
+
+                        return lines.join('');
+                    }
+
                     function renderThinkingContent(thoughtText, segments) {
                         const parts = parseStreamSegments(segments, thoughtText);
                         if (parts.length === 0) {
                             return '';
                         }
 
-                        return parts.map(part => {
+                        const rendered = [];
+                        for (const part of parts) {
                             if (part.type === 'exec') {
-                                return renderExecCard(part.value);
+                                rendered.push(renderExecCard(part.value));
+                                continue;
                             }
                             if (part.type === 'patch') {
-                                return renderPatchCard(part.value);
+                                rendered.push(renderPatchCard(part.value));
+                                continue;
                             }
-                            return '<div class="thinking-text">' + escapeHtml(part.value) + '</div>';
-                        }).join('');
+                            if (part.type === 'tool_use') {
+                                rendered.push(renderToolUseCard(part.value));
+                                continue;
+                            }
+                            // Split text by double newlines to create separate paragraphs
+                            const newline = String.fromCharCode(10);
+                            const doubleNewline = newline + newline;
+                            const paragraphs = String(part.value || '').split(doubleNewline).map(p => p.trim()).filter(Boolean);
+                            for (const para of paragraphs) {
+                                rendered.push('<div class="thinking-text">' + escapeHtml(para) + '</div>');
+                            }
+                        }
+                        return rendered.join('');
                     }
 
 `;

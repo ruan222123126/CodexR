@@ -11,4 +11,5 @@ export {
     finalizeClaudeStream,
     type ClaudeStreamAccumulator,
     type ClaudeStreamResult,
+    type TokenUsage,
 } from './parsers/claude/index';

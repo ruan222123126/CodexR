@@ -113,6 +113,49 @@ export const INPUT_STYLES = `
     margin-bottom: 8px;
 }
 
+.recent-tasks-panel {
+    position: relative;
+}
+
+.recent-tasks-toggle-btn {
+    width: 18px;
+    height: 18px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.45);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    opacity: 0;
+    transition: opacity 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+body.home-mode .recent-tasks-toggle-btn {
+    display: inline-flex;
+}
+
+body.home-mode .session-header:hover .recent-tasks-toggle-btn {
+    opacity: 1;
+}
+
+.recent-tasks-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.recent-tasks-toggle-icon {
+    font-size: 10px;
+    line-height: 1;
+    transition: transform 0.2s ease;
+}
+
+body.home-mode .recent-tasks-panel.collapsed .recent-tasks-toggle-icon {
+    transform: rotate(-90deg);
+}
+
 .session-header {
     display: none;
     align-items: center;
@@ -129,6 +172,12 @@ body.home-mode .session-header {
     display: flex;
 }
 
+.session-header-left {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
 .recent-tasks-list {
     display: none;
     flex-direction: column;
@@ -140,6 +189,14 @@ body.home-mode .session-header {
 
 body.home-mode .recent-tasks-list {
     display: flex;
+}
+
+body.home-mode .recent-tasks-panel.collapsed .recent-tasks-list {
+    display: none;
+}
+
+body.home-mode .recent-tasks-panel.collapsed .session-header {
+    margin-bottom: 8px;
 }
 
 .recent-task-item {
@@ -203,6 +260,22 @@ body.home-mode .recent-tasks-list {
     text-align: center;
     font-size: 12px;
     color: rgba(255, 255, 255, 0.4);
+}
+
+.session-header-logo {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.05));
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    font-size: 12px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.9);
+    letter-spacing: 0;
+    margin-right: 8px;
 }
 
 .session-header-title {

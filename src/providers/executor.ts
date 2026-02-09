@@ -8,6 +8,7 @@ import {
     consumeClaudeStreamChunk,
     createClaudeStreamAccumulator,
     finalizeClaudeStream,
+    type TokenUsage,
 } from '../claudeOutputParser';
 import {
     consumePiStreamChunk,
@@ -161,6 +162,17 @@ export class Executor {
         );
 
         if (result.error) {
+            // Check if this is a native session failure and mark for fallback
+            const fallbackSession = this.deps.markNativeSessionFallbackIfNeeded(
+                currentSession,
+                providerCommand,
+                result.error,
+                result.rawOutput,
+                result.exitCode ?? -1,
+            );
+            if (fallbackSession) {
+                currentSession = fallbackSession;
+            }
             currentSession = this.callbacks.onExecutionError(currentSession, result.error);
         } else {
             if (provider === 'codex' && !session.backendSessionId) {
@@ -195,6 +207,7 @@ export class Executor {
         segments: StreamSegment[];
         error?: string;
         rawOutput: string;
+        exitCode?: number;
     }> {
         const child = cp.spawn(providerCommand.command, providerCommand.args, {
             shell: true,
@@ -233,7 +246,7 @@ export class Executor {
         let flushTimer: NodeJS.Timeout | undefined;
         let endedByTimeout = false;
 
-        const emitStreamUpdate = (thought: string, content: string, segments: StreamSegment[]) => {
+        const emitStreamUpdate = (thought: string, content: string, segments: StreamSegment[], usage?: TokenUsage | null) => {
             finalSegments = segments;
             this.deps.postToWebview('stream-update', {
                 requestId,
@@ -242,6 +255,7 @@ export class Executor {
                 content,
                 stage: content ? 'answering' : 'thinking',
                 segments,
+                usage: usage || undefined,
             });
         };
 
@@ -304,7 +318,7 @@ export class Executor {
                 lastSegmentsSnapshot = snapshot;
                 lastThought = thought;
                 lastContent = content;
-                emitStreamUpdate(thought, content, mergedSegments);
+                emitStreamUpdate(thought, content, mergedSegments, parsed.usage);
                 return;
             }
 
@@ -376,6 +390,7 @@ export class Executor {
                     segments: finalSegments,
                     error: 'Request timed out.',
                     rawOutput: stdoutBuffer,
+                    exitCode: -1,
                 });
             }, REQUEST_TIMEOUT_MS);
 
@@ -439,6 +454,7 @@ export class Executor {
                     segments: finalSegments,
                     error: error.message,
                     rawOutput: stdoutBuffer,
+                    exitCode: -1,
                 });
             });
 
@@ -459,6 +475,7 @@ export class Executor {
                         content: lastContent,
                         segments: finalSegments,
                         rawOutput: stdoutBuffer,
+                        exitCode: code,
                     });
                     return;
                 }
@@ -481,7 +498,7 @@ export class Executor {
                         );
                         finalThought = buildThoughtTextFromSegments(mergedSegments);
                         finalContent = buildAnswerTextFromSegments(mergedSegments) || finalClaude.content;
-                        emitStreamUpdate(finalThought, finalContent, mergedSegments);
+                        emitStreamUpdate(finalThought, finalContent, mergedSegments, finalClaude.usage);
                     }
 
                     if (!finalClaude.content) {
@@ -500,6 +517,7 @@ export class Executor {
                             segments: finalSegments,
                             error: fallbackError,
                             rawOutput: claudeRawOutput + '\n' + stderrBuffer,
+                            exitCode: code,
                         });
                         return;
                     }
@@ -538,6 +556,7 @@ export class Executor {
                             segments: finalSegments,
                             error: errorText,
                             rawOutput: stdoutBuffer + '\n' + stderrBuffer,
+                            exitCode: code,
                         });
                         return;
                     }
@@ -572,6 +591,7 @@ export class Executor {
                                 segments: finalSegments,
                                 error: errorText,
                                 rawOutput: legacyBuffer,
+                                exitCode: code,
                             });
                             return;
                         }
@@ -610,6 +630,7 @@ export class Executor {
                                 segments: finalSegments,
                                 error: errorText,
                                 rawOutput: stdoutBuffer + '\n' + stderrBuffer,
+                                exitCode: code,
                             });
                             return;
                         }
@@ -628,6 +649,7 @@ export class Executor {
                     content: finalContent,
                     segments: finalSegments,
                     rawOutput: stdoutBuffer,
+                    exitCode: code,
                 });
             });
         });

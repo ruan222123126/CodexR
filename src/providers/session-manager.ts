@@ -14,7 +14,6 @@ import type { StreamSegment } from '../streamTypes';
 
 export class SessionManager {
     constructor(
-        private readonly defaultProvider: () => ProviderType,
         private readonly createId: () => string,
         private readonly postToWebview: (type: string, value: unknown) => void,
         private readonly persistSessionStore: () => void,
@@ -225,7 +224,7 @@ export class SessionManager {
     handleDeleteSession(
         sessions: ChatSession[],
         activeSessionId: string,
-        defaultProvider: () => ProviderType,
+        fallbackProvider: ProviderType,
         value: unknown,
     ): { newSessions: ChatSession[]; newActiveSessionId: string } {
         const payload = this.asRecord(value);
@@ -240,10 +239,11 @@ export class SessionManager {
             return { newSessions: sessions, newActiveSessionId: activeSessionId };
         }
 
+        const deletedSession = sessions[index];
         const newSessions = sessions.filter((_, i) => i !== index);
 
         if (newSessions.length === 0) {
-            const created = this.createSession(defaultProvider(), this.createId);
+            const created = this.createSession(fallbackProvider || deletedSession.provider, this.createId);
             return { newSessions: [created], newActiveSessionId: created.id };
         }
 
@@ -258,7 +258,7 @@ export class SessionManager {
     async handleDeleteSessionRequest(
         sessions: ChatSession[],
         activeSessionId: string,
-        defaultProvider: () => ProviderType,
+        fallbackProvider: ProviderType,
         value: unknown,
     ): Promise<{ newSessions: ChatSession[]; newActiveSessionId: string } | null> {
         const payload = this.asRecord(value);
@@ -287,7 +287,7 @@ export class SessionManager {
             return null;
         }
 
-        return this.handleDeleteSession(sessions, activeSessionId, defaultProvider, { sessionId });
+        return this.handleDeleteSession(sessions, activeSessionId, fallbackProvider, { sessionId });
     }
 
     async handleExportSession(sessions: ChatSession[], value: unknown): Promise<void> {
@@ -337,7 +337,7 @@ export class SessionManager {
     async handleMultiDeleteSession(
         sessions: ChatSession[],
         activeSessionId: string,
-        defaultProvider: () => ProviderType,
+        fallbackProvider: ProviderType,
         value: unknown,
     ): Promise<{ newSessions: ChatSession[]; newActiveSessionId: string } | null> {
         const payload = this.asRecord(value);
@@ -365,10 +365,12 @@ export class SessionManager {
             return null;
         }
 
+        // Get the provider from the last session to be deleted for fallback
+        const lastDeletedSession = sessions.find(item => validSessionIds.includes(item.id));
         const newSessions = sessions.filter(item => !validSessionIds.includes(item.id));
 
         if (newSessions.length === 0) {
-            const created = this.createSession(defaultProvider(), this.createId);
+            const created = this.createSession(fallbackProvider || lastDeletedSession?.provider || 'codex', this.createId);
             return { newSessions: [created], newActiveSessionId: created.id };
         }
 
@@ -437,12 +439,13 @@ export class SessionManager {
         }
     }
 
-    public publishSessionState(sessions: ChatSession[], activeSessionId: string): void {
+    public publishSessionState(sessions: ChatSession[], activeSessionId: string, showHome?: boolean): void {
         const summaries = this.buildSessionSummaries(sessions);
 
         this.postToWebview('session-list', {
             activeSessionId,
             sessions: summaries,
+            showHome: showHome === true,
         });
 
         const active = sessions.find(item => item.id === activeSessionId);
@@ -457,6 +460,7 @@ export class SessionManager {
                     messages: active.messages,
                 }
                 : null,
+            showHome: showHome === true,
         });
     }
 

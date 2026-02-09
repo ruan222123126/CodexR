@@ -8,7 +8,9 @@ export const CHAT_STYLES = `
 }
 
 body.history-mode #chat-container,
-body.history-mode #input-area {
+body.history-mode #input-area,
+body.settings-mode #chat-container,
+body.settings-mode #input-area {
     display: none;
 }
 
@@ -34,50 +36,65 @@ body.history-mode #input-area {
     background-color: transparent; /* 透明背景，依靠内部块着色 */
 }
 
-/* 🧠 思考过程折叠块样式 */
+/* 🧠 思考过程折叠块样式 - 简洁版 */
 details.thinking-block {
-    background-color: var(--vscode-textBlockQuote-background);
-    border: 1px solid var(--vscode-textBlockQuote-border);
-    border-radius: 6px;
-    margin-bottom: 10px;
+    background: transparent;
+    border: none;
+    margin-bottom: 8px;
     min-width: 0;
     font-size: 12px;
     color: var(--vscode-descriptionForeground);
 }
 details.thinking-block summary {
-    padding: 8px 12px;
+    padding: 4px 0;
     cursor: pointer;
-    font-weight: 600;
+    font-weight: 500;
     user-select: none;
     outline: none;
-    list-style: none; /* 隐藏默认三角，下面自定义 */
+    list-style: none;
+    opacity: 0.7;
+    transition: opacity 0.15s;
 }
-details.thinking-block.has-tools {
-    border-color: var(--vscode-charts-blue, var(--vscode-focusBorder));
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--vscode-charts-blue, var(--vscode-focusBorder)) 25%, transparent);
+details.thinking-block summary:hover {
+    opacity: 1;
 }
 details.thinking-block.has-tools summary {
-    color: var(--vscode-charts-blue, var(--vscode-editor-foreground));
+    opacity: 0.85;
 }
 details.thinking-block summary::-webkit-details-marker { display: none; }
 details.thinking-block summary::before {
-    content: '▶ ';
-    font-size: 10px;
+    content: '▸';
+    font-size: 11px;
     display: inline-block;
-    margin-right: 5px;
-    transition: transform 0.2s;
+    margin-right: 4px;
+    transition: transform 0.15s;
 }
 details[open].thinking-block summary::before {
     transform: rotate(90deg);
 }
+.thinking-tool-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    margin-left: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    border-radius: 8px;
+    background: var(--vscode-badge-background);
+    color: var(--vscode-badge-foreground);
+}
 .thinking-content {
-    padding: 10px 12px;
-    border-top: 1px solid var(--vscode-textBlockQuote-border);
+    padding: 6px 0 6px 12px;
+    border-left: 2px solid var(--vscode-textBlockQuote-border);
+    margin-left: 4px;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
     min-width: 0;
-    max-height: 260px;
+    max-height: 200px;
     overflow-x: hidden;
     overflow-y: auto;
 }
@@ -86,42 +103,54 @@ details[open].thinking-block summary::before {
     overflow-wrap: anywhere;
     word-break: break-word;
     font-family: var(--vscode-editor-font-family, 'Consolas', monospace);
-    font-size: 12px;
-    line-height: 1.5;
-    opacity: 0.9;
+    font-size: 11px;
+    line-height: 1.4;
+    opacity: 0.8;
 }
+.thinking-text + .thinking-text {
+    border-top: 1px dashed var(--vscode-textBlockQuote-border);
+    padding-top: 6px;
+    margin-top: 2px;
+}
+.thinking-separator {
+    height: 1px;
+    background: linear-gradient(to right, var(--vscode-textBlockQuote-border), transparent);
+    margin: 4px 0;
+    opacity: 0.6;
+}
+/* 简化的操作卡片样式 */
 .op-card {
-    border: 1px solid var(--vscode-panel-border);
-    border-radius: 8px;
-    background: var(--vscode-editorHoverWidget-background, rgba(128, 128, 128, 0.12));
-    padding: 8px 10px;
+    background: var(--vscode-textBlockQuote-background);
+    border-radius: 4px;
+    padding: 6px 8px;
     min-width: 0;
+    font-size: 11px;
 }
 .op-card + .op-card {
-    margin-top: 2px;
+    margin-top: 4px;
 }
 .op-card-head {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    margin-bottom: 6px;
+    gap: 6px;
+    margin-bottom: 4px;
 }
 .op-head-right {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
+    margin-left: auto;
 }
 .op-badge {
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 600;
-    letter-spacing: 0.2px;
-    color: var(--vscode-descriptionForeground);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    opacity: 0.7;
 }
 .op-status {
-    font-size: 11px;
-    font-weight: 600;
+    font-size: 10px;
+    font-weight: 500;
 }
 .op-status.success {
     color: var(--vscode-testing-iconPassed, #4caf50);
@@ -131,46 +160,100 @@ details[open].thinking-block summary::before {
 }
 .op-time {
     font-size: 10px;
-    color: var(--vscode-descriptionForeground);
+    opacity: 0.6;
 }
 .op-command {
     font-family: var(--vscode-editor-font-family, 'Consolas', monospace);
-    font-size: 12px;
-    line-height: 1.45;
+    font-size: 11px;
+    line-height: 1.35;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
     word-break: break-word;
-    background: var(--vscode-editor-inactiveSelectionBackground);
-    border-radius: 4px;
-    padding: 6px 8px;
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 3px;
+    padding: 4px 6px;
 }
 .op-output {
-    margin-top: 6px;
+    margin-top: 4px;
     font-family: var(--vscode-editor-font-family, 'Consolas', monospace);
-    font-size: 12px;
-    line-height: 1.45;
+    font-size: 10px;
+    line-height: 1.35;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
     word-break: break-word;
-    background: rgba(0, 0, 0, 0.18);
-    border-radius: 4px;
-    padding: 6px 8px;
-    border: 1px solid var(--vscode-panel-border);
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 3px;
+    padding: 4px 6px;
+    max-height: 80px;
+    overflow-y: auto;
+    opacity: 0.85;
 }
 .op-meta {
-    margin-top: 6px;
-    font-size: 11px;
+    margin-top: 4px;
+    font-size: 10px;
     overflow-wrap: anywhere;
-    color: var(--vscode-descriptionForeground);
+    opacity: 0.6;
 }
 .op-files {
-    margin: 8px 0 0;
-    padding-left: 16px;
-    font-size: 12px;
+    margin: 4px 0 0;
+    padding-left: 12px;
+    font-size: 10px;
 }
 .op-files li {
-    margin: 2px 0;
+    margin: 1px 0;
     font-family: var(--vscode-editor-font-family, 'Consolas', monospace);
+    opacity: 0.8;
+}
+
+/* 🛠️ 工具调用卡片样式 - 黑曜石风格 */
+.tool-card {
+    background: #1b1b1b;
+    border-radius: 8px;
+    box-shadow:
+        0 4px 12px rgba(0, 0, 0, 0.4),
+        0 0 0 1px rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+    font-family: var(--vscode-editor-font-family, 'Fira Code', 'Consolas', monospace);
+}
+.tool-card + .tool-card {
+    margin-top: 8px;
+}
+.tool-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: #252526;
+    border-bottom: 1px solid #333;
+}
+.tool-card-icon {
+    font-size: 14px;
+    line-height: 1;
+    opacity: 0.9;
+}
+.tool-card-name {
+    font-size: 12px;
+    font-weight: 500;
+    color: #8b949e;
+    letter-spacing: 0.3px;
+}
+.tool-card-content {
+    padding: 12px 14px;
+    font-family: var(--vscode-editor-font-family, 'Fira Code', 'Consolas', monospace);
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: #d4d4d4;
+    background: #1b1b1b;
+}
+.tool-card-secondary {
+    padding: 6px 14px 10px;
+    font-size: 11px;
+    color: #5c6370;
+    font-style: italic;
+    border-top: 1px solid #333;
+    background: #1b1b1b;
 }
 
 /* 💬 最终回复样式 */

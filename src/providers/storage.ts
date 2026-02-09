@@ -11,11 +11,11 @@ import type {
 import type { StreamSegment } from '../streamTypes';
 
 const SESSION_STORE_VERSION = 1;
+const WORKSPACE_VISITED_KEY = 'codexSidebar.workspaceVisited';
 
 export class SessionStorage {
     constructor(
         private readonly context: vscode.ExtensionContext,
-        private readonly defaultProvider: () => ProviderType,
         private readonly normalizeProvider: (value: unknown) => ProviderType,
     ) {}
 
@@ -32,10 +32,10 @@ export class SessionStorage {
         return this.context.globalState;
     }
 
-    load(createSession: () => ChatSession, parsePersistedState: (raw: unknown) => SessionStoreState | null): { sessions: ChatSession[]; activeSessionId: string } {
+    load(createSession: () => ChatSession, parsePersistedState: (raw: unknown) => SessionStoreState | null): { sessions: ChatSession[]; activeSessionId: string; isNewWorkspace: boolean } {
         const bucket = this.getStorageBucket();
         const raw = bucket.get<unknown>(this.buildStorageKey());
-        const fallbackProvider = this.defaultProvider();
+        const isNewWorkspace = !this.hasVisitedWorkspace();
 
         if (raw === undefined) {
             const session = createSession();
@@ -44,7 +44,8 @@ export class SessionStorage {
                 activeSessionId: session.id,
                 sessions: [session],
             });
-            return { sessions: [session], activeSessionId: session.id };
+            this.markWorkspaceVisited();
+            return { sessions: [session], activeSessionId: session.id, isNewWorkspace: true };
         }
 
         try {
@@ -62,10 +63,12 @@ export class SessionStorage {
 
             if (!activeSessionId || sessions.length === 0) {
                 const session = createSession();
-                return { sessions: [session], activeSessionId: session.id };
+                this.markWorkspaceVisited();
+                return { sessions: [session], activeSessionId: session.id, isNewWorkspace };
             }
 
-            return { sessions, activeSessionId };
+            this.markWorkspaceVisited();
+            return { sessions, activeSessionId, isNewWorkspace };
         } catch (error) {
             const backupKey = `codexSidebar.sessions.backup.${Date.now()}`;
             const backup: BackupRecord = {
@@ -81,7 +84,8 @@ export class SessionStorage {
                 activeSessionId: session.id,
                 sessions: [session],
             });
-            return { sessions: [session], activeSessionId: session.id };
+            this.markWorkspaceVisited();
+            return { sessions: [session], activeSessionId: session.id, isNewWorkspace: true };
         }
     }
 
@@ -323,5 +327,19 @@ export class SessionStorage {
             return undefined;
         }
         return value as Record<string, unknown>;
+    }
+
+    private buildWorkspaceVisitedKey(): string {
+        const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? 'global';
+        const hash = crypto.createHash('sha1').update(workspacePath).digest('hex').slice(0, 12);
+        return `${WORKSPACE_VISITED_KEY}.${hash}`;
+    }
+
+    private hasVisitedWorkspace(): boolean {
+        return this.context.globalState.get<boolean>(this.buildWorkspaceVisitedKey()) === true;
+    }
+
+    private markWorkspaceVisited(): void {
+        void this.context.globalState.update(this.buildWorkspaceVisitedKey(), true);
     }
 }
