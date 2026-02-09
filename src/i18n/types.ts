@@ -40,6 +40,7 @@ export interface TranslationStrings {
     // Settings page
     'settings.title': string;
     'settings.back': string;
+    'settings.searchPlaceholder': string;
     'settings.general': string;
     'settings.display': string;
     'settings.session': string;
@@ -47,6 +48,10 @@ export interface TranslationStrings {
     'settings.languageDesc': string;
     'settings.showToolIndicator': string;
     'settings.showToolIndicatorDesc': string;
+    'settings.stepDetailLevel': string;
+    'settings.stepDetailLevelDesc': string;
+    'settings.stepDetailLevelCompact': string;
+    'settings.stepDetailLevelFull': string;
     'settings.thinkingFilter': string;
     'settings.thinkingFilterDesc': string;
     'settings.codexHideThinking': string;
@@ -68,6 +73,62 @@ export interface TranslationStrings {
     'settings.titleModeFirstMessage': string;
     'settings.titleFixedProvider': string;
     'settings.titleFixedProviderDesc': string;
+    'settings.piConfig': string;
+    'settings.piModel': string;
+    'settings.piModelDesc': string;
+    'settings.piApiKey': string;
+    'settings.piApiKeyDesc': string;
+    'settings.piApiKeyPlaceholder': string;
+    'settings.piThinkingLevel': string;
+    'settings.piThinkingLevelDesc': string;
+    'settings.piThinkingLevelDefault': string;
+    // Codex configuration
+    'settings.codexConfig': string;
+    'settings.codexModel': string;
+    'settings.codexModelDesc': string;
+    'settings.codexModelPlaceholder': string;
+    'settings.codexConfigOverrides': string;
+    'settings.codexConfigOverridesDesc': string;
+    'settings.codexConfigOverridesPlaceholder': string;
+    'settings.codexProfile': string;
+    'settings.codexProfileDesc': string;
+    'settings.codexProfilePlaceholder': string;
+    'settings.codexOss': string;
+    'settings.codexOssDesc': string;
+    // Codex sandbox and approval settings
+    'settings.codexSandboxMode': string;
+    'settings.codexSandboxModeDesc': string;
+    'settings.codexSandboxModeDefault': string;
+    'settings.codexSandboxModeReadOnly': string;
+    'settings.codexSandboxModeWorkspaceWrite': string;
+    'settings.codexSandboxModeDangerFullAccess': string;
+    'settings.codexApprovalPolicy': string;
+    'settings.codexApprovalPolicyDesc': string;
+    'settings.codexApprovalPolicyDefault': string;
+    'settings.codexApprovalPolicyUntrusted': string;
+    'settings.codexApprovalPolicyOnFailure': string;
+    'settings.codexApprovalPolicyNever': string;
+    'settings.codexFullAuto': string;
+    'settings.codexFullAutoDesc': string;
+    // Claude configuration
+    'settings.claudeConfig': string;
+    'settings.claudeModel': string;
+    'settings.claudeModelDesc': string;
+    'settings.claudeModelPlaceholder': string;
+    'settings.claudeAgent': string;
+    'settings.claudeAgentDesc': string;
+    'settings.claudeAgentPlaceholder': string;
+    'settings.claudeTools': string;
+    'settings.claudeToolsDesc': string;
+    'settings.claudeToolsPlaceholder': string;
+    'settings.claudePermissionMode': string;
+    'settings.claudePermissionModeDesc': string;
+    'settings.claudePermissionModeDangerouslySkip': string;
+    'settings.claudePermissionModeAllowDangerouslySkip': string;
+    'settings.claudePermissionModeDefault': string;
+    // Open config buttons
+    'settings.openConfig': string;
+    'settings.openConfigDesc': string;
 
     // Input area
     'input.placeholder': string;
@@ -85,6 +146,13 @@ export interface TranslationStrings {
     'status.ready': string;
     'status.thinking': string;
     'status.clickToStop': string;
+    'status.modalTitle': string;
+    'status.refresh': string;
+    'status.close': string;
+    'status.mcpServers': string;
+    'status.extensions': string;
+    'status.loading': string;
+    'status.noItems': string;
 
     // Messages
     'message.thinkingProcess': string;
@@ -94,4 +162,6 @@ export interface TranslationStrings {
     'message.sessionOperationFailed': string;
     'message.attachmentLimitHint': string;
     'message.emptyTitleError': string;
+    'message.copy': string;
+    'message.copied': string;
 }

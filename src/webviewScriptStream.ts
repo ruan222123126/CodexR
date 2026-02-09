@@ -18,15 +18,20 @@ export const WEBVIEW_SCRIPT_STREAM = `
                         answerBlock.className = 'answer-block';
                         answerBlock.style.display = 'none';
 
+                        const actionsDiv = document.createElement('div');
+                        actionsDiv.className = 'message-actions';
+                        actionsDiv.innerHTML = '<button class="copy-btn stream-copy-btn" title="' + t('message.copy') + '"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"><path fill="currentColor" d="M9 18q-.825 0-1.412-.587T7 16V4q0-.825.588-1.412T9 2h9q.825 0 1.413.588T20 4v12q0 .825-.587 1.413T18 18zm-4 4q-.825 0-1.412-.587T3 20V6h2v14h11v2z"/></svg></button>';
+
                         details.appendChild(summary);
                         details.appendChild(thinkingContent);
                         wrapper.appendChild(details);
                         wrapper.appendChild(answerBlock);
+                        wrapper.appendChild(actionsDiv);
 
                         container.appendChild(wrapper);
                         container.scrollTop = container.scrollHeight;
 
-                        return { wrapper, details, summary, thinkingContent, answerBlock };
+                        return { wrapper, details, summary, thinkingContent, answerBlock, actionsDiv };
                     }
 
                     function renderStreamPlaceholder(label) {

@@ -432,6 +432,91 @@ export const WEBVIEW_SCRIPT_INPUT = `
                         if (settingsTitleFixedProviderItem) {
                             settingsTitleFixedProviderItem.style.display = settings.titleGenerationMode === 'fixedProvider' ? 'flex' : 'none';
                         }
+                        // Pi configuration settings
+                        if (settingsPiModel && settings.piModel !== undefined) {
+                            settingsPiModel.value = settings.piModel;
+                        }
+                        if (settingsPiApiKey && settings.piApiKey !== undefined) {
+                            settingsPiApiKey.value = settings.piApiKey;
+                        }
+                        if (settingsPiThinkingLevel && settings.piThinkingLevel) {
+                            settingsPiThinkingLevel.value = settings.piThinkingLevel;
+                            const thinkingLevelLabels = {
+                                default: t('settings.piThinkingLevelDefault'),
+                                off: 'Off',
+                                minimal: 'Minimal',
+                                low: 'Low',
+                                medium: 'Medium',
+                                high: 'High',
+                                xhigh: 'XHigh'
+                            };
+                            updateSettingsSelectDisplay('settings-pi-thinking-level', settings.piThinkingLevel, thinkingLevelLabels[settings.piThinkingLevel] || settings.piThinkingLevel);
+                        }
+                        // Codex configuration settings
+                        if (settingsCodexModel && settings.codexModel !== undefined) {
+                            settingsCodexModel.value = settings.codexModel;
+                        }
+                        if (settingsCodexConfigOverrides && settings.codexConfigOverrides !== undefined) {
+                            settingsCodexConfigOverrides.value = settings.codexConfigOverrides;
+                        }
+                        if (settingsCodexProfile && settings.codexProfile !== undefined) {
+                            settingsCodexProfile.value = settings.codexProfile;
+                        }
+                        if (settingsCodexOss) {
+                            settingsCodexOss.checked = settings.codexOss === true;
+                        }
+                        if (settingsCodexSandboxMode && settings.codexSandboxMode) {
+                            settingsCodexSandboxMode.value = settings.codexSandboxMode;
+                            const sandboxModeLabels = {
+                                'default': t('settings.codexSandboxModeDefault'),
+                                'read-only': t('settings.codexSandboxModeReadOnly'),
+                                'workspace-write': t('settings.codexSandboxModeWorkspaceWrite'),
+                                'danger-full-access': t('settings.codexSandboxModeDangerFullAccess')
+                            };
+                            updateSettingsSelectDisplay('settings-codex-sandbox-mode', settings.codexSandboxMode, sandboxModeLabels[settings.codexSandboxMode] || settings.codexSandboxMode);
+                        }
+                        if (settingsCodexApprovalPolicy && settings.codexApprovalPolicy) {
+                            settingsCodexApprovalPolicy.value = settings.codexApprovalPolicy;
+                            const approvalPolicyLabels = {
+                                'default': t('settings.codexApprovalPolicyDefault'),
+                                'untrusted': t('settings.codexApprovalPolicyUntrusted'),
+                                'on-failure': t('settings.codexApprovalPolicyOnFailure'),
+                                'never': t('settings.codexApprovalPolicyNever')
+                            };
+                            updateSettingsSelectDisplay('settings-codex-approval-policy', settings.codexApprovalPolicy, approvalPolicyLabels[settings.codexApprovalPolicy] || settings.codexApprovalPolicy);
+                        }
+                        if (settingsCodexFullAuto) {
+                            settingsCodexFullAuto.checked = settings.codexFullAuto === true;
+                        }
+                        // Claude configuration settings
+                        if (settingsClaudeModel && settings.claudeModel !== undefined) {
+                            settingsClaudeModel.value = settings.claudeModel;
+                        }
+                        if (settingsClaudeAgent && settings.claudeAgent !== undefined) {
+                            settingsClaudeAgent.value = settings.claudeAgent;
+                        }
+                        if (settingsClaudeTools && settings.claudeTools !== undefined) {
+                            settingsClaudeTools.value = settings.claudeTools;
+                        }
+                        if (settingsClaudePermissionMode && settings.claudePermissionMode) {
+                            settingsClaudePermissionMode.value = settings.claudePermissionMode;
+                            const permissionModeLabels = {
+                                dangerouslySkip: t('settings.claudePermissionModeDangerouslySkip'),
+                                allowDangerouslySkip: t('settings.claudePermissionModeAllowDangerouslySkip'),
+                                default: t('settings.claudePermissionModeDefault')
+                            };
+                            updateSettingsSelectDisplay('settings-claude-permission-mode', settings.claudePermissionMode, permissionModeLabels[settings.claudePermissionMode] || settings.claudePermissionMode);
+                        }
+                        // Step detail level setting
+                        if (settingsStepDetailLevel && settings.stepDetailLevel) {
+                            settingsStepDetailLevel.value = settings.stepDetailLevel;
+                            stepDetailLevel = settings.stepDetailLevel;
+                            const stepDetailLevelLabels = {
+                                compact: t('settings.stepDetailLevelCompact'),
+                                full: t('settings.stepDetailLevelFull')
+                            };
+                            updateSettingsSelectDisplay('settings-step-detail-level', settings.stepDetailLevel, stepDetailLevelLabels[settings.stepDetailLevel] || settings.stepDetailLevel);
+                        }
                     }
 
                     function t(key) {
@@ -570,6 +655,87 @@ export const WEBVIEW_SCRIPT_INPUT = `
                         setHomeMode(true);
                     }
 
+                    function openStatusModal() {
+                        if (statusModal) {
+                            statusModal.setAttribute('aria-hidden', 'false');
+                            requestStatusUpdate();
+                        }
+                    }
+
+                    function closeStatusModal() {
+                        if (statusModal) {
+                            statusModal.setAttribute('aria-hidden', 'true');
+                        }
+                    }
+
+                    function setAllStatusIndicatorsLoading() {
+                        if (claudeStatusIndicator) {
+                            claudeStatusIndicator.className = 'status-indicator loading';
+                        }
+                        if (codexStatusIndicator) {
+                            codexStatusIndicator.className = 'status-indicator loading';
+                        }
+                        if (piStatusIndicator) {
+                            piStatusIndicator.className = 'status-indicator loading';
+                        }
+                        if (claudeMcpList) {
+                            claudeMcpList.innerHTML = '<div class="status-empty">' + t('status.loading') + '</div>';
+                        }
+                        if (codexMcpList) {
+                            codexMcpList.innerHTML = '<div class="status-empty">' + t('status.loading') + '</div>';
+                        }
+                        if (piExtList) {
+                            piExtList.innerHTML = '<div class="status-empty">' + t('status.loading') + '</div>';
+                        }
+                    }
+
+                    function requestStatusUpdate() {
+                        setAllStatusIndicatorsLoading();
+                        vscode.postMessage({ type: 'status-request' });
+                    }
+
+                    function renderStatusResponse(statuses) {
+                        if (!Array.isArray(statuses)) {
+                            return;
+                        }
+
+                        for (const status of statuses) {
+                            if (!status || !status.provider) {
+                                continue;
+                            }
+
+                            let listEl = null;
+                            let indicator = null;
+
+                            if (status.provider === 'claude') {
+                                listEl = claudeMcpList;
+                                indicator = claudeStatusIndicator;
+                            } else if (status.provider === 'codex') {
+                                listEl = codexMcpList;
+                                indicator = codexStatusIndicator;
+                            } else if (status.provider === 'pi') {
+                                listEl = piExtList;
+                                indicator = piStatusIndicator;
+                            }
+
+                            if (indicator) {
+                                indicator.className = 'status-indicator ' + (status.status || 'empty');
+                            }
+
+                            if (listEl) {
+                                if (status.error) {
+                                    listEl.innerHTML = '<div class="status-error">' + escapeHtml(status.error) + '</div>';
+                                } else if (!status.items || status.items.length === 0) {
+                                    listEl.innerHTML = '<div class="status-empty">' + t('status.noItems') + '</div>';
+                                } else {
+                                    listEl.innerHTML = status.items
+                                        .map(function(item) { return '<div class="status-item">' + escapeHtml(item) + '</div>'; })
+                                        .join('');
+                                }
+                            }
+                        }
+                    }
+
                     function handleHistoryAction(action, sessionId) {
                         if (!sessionId) {
                             return;
@@ -654,10 +820,20 @@ export const WEBVIEW_SCRIPT_INPUT = `
                                     ? '\\n\\n📎 ' + entry.attachments.map(item => item && item.name ? item.name : '').filter(Boolean).join(', ')
                                     : '';
 
+                                const wrapper = document.createElement('div');
+                                wrapper.className = 'user-message-wrapper';
+
+                                const actionsDiv = document.createElement('div');
+                                actionsDiv.className = 'message-actions user-actions';
+                                actionsDiv.innerHTML = '<button class="copy-btn" data-copy-text="' + escapeHtml(prompt) + '" title="' + t('message.copy') + '"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"><path fill="currentColor" d="M9 18q-.825 0-1.412-.587T7 16V4q0-.825.588-1.412T9 2h9q.825 0 1.413.588T20 4v12q0 .825-.587 1.413T18 18zm-4 4q-.825 0-1.412-.587T3 20V6h2v14h11v2z"/></svg></button>';
+                                wrapper.appendChild(actionsDiv);
+
                                 const div = document.createElement('div');
                                 div.className = 'message user';
                                 div.innerText = prompt + attachmentText;
-                                container.appendChild(div);
+                                wrapper.appendChild(div);
+
+                                container.appendChild(wrapper);
                                 return;
                             }
 
@@ -679,6 +855,7 @@ export const WEBVIEW_SCRIPT_INPUT = `
                                 if (content) {
                                     html += '<div class="answer-block">' + renderMarkdownSafe(content) + '</div>';
                                 }
+                                html += '<div class="message-actions"><button class="copy-btn" data-copy-text="' + escapeHtml(content || thought) + '" title="' + t('message.copy') + '"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"><path fill="currentColor" d="M9 18q-.825 0-1.412-.587T7 16V4q0-.825.588-1.412T9 2h9q.825 0 1.413.588T20 4v12q0 .825-.587 1.413T18 18zm-4 4q-.825 0-1.412-.587T3 20V6h2v14h11v2z"/></svg></button></div>';
 
                                 div.innerHTML = html;
                                 container.appendChild(div);
@@ -917,6 +1094,33 @@ export const WEBVIEW_SCRIPT_INPUT = `
                         });
                     }
 
+                    if (statusBtn) {
+                        statusBtn.addEventListener('click', () => {
+                            openStatusModal();
+                        });
+                    }
+
+                    if (statusModalClose) {
+                        statusModalClose.addEventListener('click', () => {
+                            closeStatusModal();
+                        });
+                    }
+
+                    if (statusModalRefresh) {
+                        statusModalRefresh.addEventListener('click', () => {
+                            requestStatusUpdate();
+                        });
+                    }
+
+                    if (statusModal) {
+                        const backdrop = statusModal.querySelector('.status-modal-backdrop');
+                        if (backdrop) {
+                            backdrop.addEventListener('click', () => {
+                                closeStatusModal();
+                            });
+                        }
+                    }
+
                     if (settingsBackBtn) {
                         settingsBackBtn.addEventListener('click', () => {
                             setSettingsMode(false);
@@ -980,6 +1184,28 @@ export const WEBVIEW_SCRIPT_INPUT = `
                                 settingsKey = 'titleFixedProvider';
                                 const providerLabels = { codex: 'Codex', claude: 'Claude', pi: 'Pi' };
                                 labelText = providerLabels[value] || value;
+                            } else if (selectType === 'pi-thinking-level') {
+                                nativeSelect = settingsPiThinkingLevel;
+                                settingsKey = 'piThinkingLevel';
+                                const thinkingLevelLabels = {
+                                    default: t('settings.piThinkingLevelDefault'),
+                                    off: 'Off',
+                                    minimal: 'Minimal',
+                                    low: 'Low',
+                                    medium: 'Medium',
+                                    high: 'High',
+                                    xhigh: 'XHigh'
+                                };
+                                labelText = thinkingLevelLabels[value] || value;
+                            } else if (selectType === 'claude-permission-mode') {
+                                nativeSelect = settingsClaudePermissionMode;
+                                settingsKey = 'claudePermissionMode';
+                                const permissionModeLabels = {
+                                    dangerouslySkip: t('settings.claudePermissionModeDangerouslySkip'),
+                                    allowDangerouslySkip: t('settings.claudePermissionModeAllowDangerouslySkip'),
+                                    default: t('settings.claudePermissionModeDefault')
+                                };
+                                labelText = permissionModeLabels[value] || value;
                             }
 
                             if (nativeSelect) {
@@ -1015,6 +1241,23 @@ export const WEBVIEW_SCRIPT_INPUT = `
                                 type: 'settings-update',
                                 value: { key: 'showToolUsageIndicator', value: settingsShowToolIndicator.checked },
                             });
+                        });
+                    }
+
+                    if (settingsStepDetailLevel) {
+                        settingsStepDetailLevel.addEventListener('change', () => {
+                            stepDetailLevel = settingsStepDetailLevel.value;
+                            vscode.postMessage({
+                                type: 'settings-update',
+                                value: { key: 'stepDetailLevel', value: settingsStepDetailLevel.value },
+                            });
+                        });
+                    }
+
+                    if (settingsStepDetailLevelTrigger) {
+                        settingsStepDetailLevelTrigger.addEventListener('click', event => {
+                            event.preventDefault();
+                            toggleSettingsSelect('settings-step-detail-level-wrap');
                         });
                     }
 
@@ -1102,6 +1345,259 @@ export const WEBVIEW_SCRIPT_INPUT = `
                         });
                     }
 
+                    // Pi configuration event listeners
+                    if (settingsPiModel) {
+                        settingsPiModel.addEventListener('change', () => {
+                            vscode.postMessage({
+                                type: 'settings-update',
+                                value: { key: 'piModel', value: settingsPiModel.value },
+                            });
+                        });
+                        settingsPiModel.addEventListener('blur', () => {
+                            vscode.postMessage({
+                                type: 'settings-update',
+                                value: { key: 'piModel', value: settingsPiModel.value },
+                            });
+                        });
+                    }
+
+                    if (settingsPiApiKey) {
+                        settingsPiApiKey.addEventListener('change', () => {
+                            vscode.postMessage({
+                                type: 'settings-update',
+                                value: { key: 'piApiKey', value: settingsPiApiKey.value },
+                            });
+                        });
+                        settingsPiApiKey.addEventListener('blur', () => {
+                            vscode.postMessage({
+                                type: 'settings-update',
+                                value: { key: 'piApiKey', value: settingsPiApiKey.value },
+                            });
+                        });
+                    }
+
+                    if (settingsPiThinkingLevel) {
+                        settingsPiThinkingLevel.addEventListener('change', () => {
+                            vscode.postMessage({
+                                type: 'settings-update',
+                                value: { key: 'piThinkingLevel', value: settingsPiThinkingLevel.value },
+                            });
+                        });
+                    }
+
+                    if (settingsPiThinkingLevelTrigger) {
+                        settingsPiThinkingLevelTrigger.addEventListener('click', event => {
+                            event.preventDefault();
+                            toggleSettingsSelect('settings-pi-thinking-level-wrap');
+                        });
+                    }
+
+                    // Codex configuration event listeners
+                    if (settingsCodexModel) {
+                        settingsCodexModel.addEventListener('change', () => {
+                            vscode.postMessage({
+                                type: 'settings-update',
+                                value: { key: 'codexModel', value: settingsCodexModel.value },
+                            });
+                        });
+                        settingsCodexModel.addEventListener('blur', () => {
+                            vscode.postMessage({
+                                type: 'settings-update',
+                                value: { key: 'codexModel', value: settingsCodexModel.value },
+                            });
+                        });
+                    }
+
+                    if (settingsCodexConfigOverrides) {
+                        settingsCodexConfigOverrides.addEventListener('change', () => {
+                            vscode.postMessage({
+                                type: 'settings-update',
+                                value: { key: 'codexConfigOverrides', value: settingsCodexConfigOverrides.value },
+                            });
+                        });
+                        settingsCodexConfigOverrides.addEventListener('blur', () => {
+                            vscode.postMessage({
+                                type: 'settings-update',
+                                value: { key: 'codexConfigOverrides', value: settingsCodexConfigOverrides.value },
+                            });
+                        });
+                    }
+
+                    if (settingsCodexProfile) {
+                        settingsCodexProfile.addEventListener('change', () => {
+                            vscode.postMessage({
+                                type: 'settings-update',
+                                value: { key: 'codexProfile', value: settingsCodexProfile.value },
+                            });
+                        });
+                        settingsCodexProfile.addEventListener('blur', () => {
+                            vscode.postMessage({
+                                type: 'settings-update',
+                                value: { key: 'codexProfile', value: settingsCodexProfile.value },
+                            });
+                        });
+                    }
+
+                    if (settingsCodexOss) {
+                        settingsCodexOss.addEventListener('change', () => {
+                            vscode.postMessage({
+                                type: 'settings-update',
+                                value: { key: 'codexOss', value: settingsCodexOss.checked },
+                            });
+                        });
+                    }
+
+                    // Codex sandbox mode select
+                    if (settingsCodexSandboxModeTrigger) {
+                        settingsCodexSandboxModeTrigger.addEventListener('click', () => {
+                            toggleSettingsSelect('settings-codex-sandbox-mode-wrap');
+                        });
+                    }
+
+                    if (settingsCodexSandboxModeMenu) {
+                        settingsCodexSandboxModeMenu.querySelectorAll('[data-settings-select="codex-sandbox-mode"]').forEach(option => {
+                            option.addEventListener('click', () => {
+                                const value = option.getAttribute('data-settings-option');
+                                if (settingsCodexSandboxMode) {
+                                    settingsCodexSandboxMode.value = value;
+                                }
+                                const sandboxModeLabels = {
+                                    'default': t('settings.codexSandboxModeDefault'),
+                                    'read-only': t('settings.codexSandboxModeReadOnly'),
+                                    'workspace-write': t('settings.codexSandboxModeWorkspaceWrite'),
+                                    'danger-full-access': t('settings.codexSandboxModeDangerFullAccess')
+                                };
+                                updateSettingsSelectDisplay('settings-codex-sandbox-mode', value, sandboxModeLabels[value] || value);
+                                closeAllSettingsSelects();
+                                vscode.postMessage({
+                                    type: 'settings-update',
+                                    value: { key: 'codexSandboxMode', value: value },
+                                });
+                            });
+                        });
+                    }
+
+                    // Codex approval policy select
+                    if (settingsCodexApprovalPolicyTrigger) {
+                        settingsCodexApprovalPolicyTrigger.addEventListener('click', () => {
+                            toggleSettingsSelect('settings-codex-approval-policy-wrap');
+                        });
+                    }
+
+                    if (settingsCodexApprovalPolicyMenu) {
+                        settingsCodexApprovalPolicyMenu.querySelectorAll('[data-settings-select="codex-approval-policy"]').forEach(option => {
+                            option.addEventListener('click', () => {
+                                const value = option.getAttribute('data-settings-option');
+                                if (settingsCodexApprovalPolicy) {
+                                    settingsCodexApprovalPolicy.value = value;
+                                }
+                                const approvalPolicyLabels = {
+                                    'default': t('settings.codexApprovalPolicyDefault'),
+                                    'untrusted': t('settings.codexApprovalPolicyUntrusted'),
+                                    'on-failure': t('settings.codexApprovalPolicyOnFailure'),
+                                    'never': t('settings.codexApprovalPolicyNever')
+                                };
+                                updateSettingsSelectDisplay('settings-codex-approval-policy', value, approvalPolicyLabels[value] || value);
+                                closeAllSettingsSelects();
+                                vscode.postMessage({
+                                    type: 'settings-update',
+                                    value: { key: 'codexApprovalPolicy', value: value },
+                                });
+                            });
+                        });
+                    }
+
+                    // Codex full auto toggle
+                    if (settingsCodexFullAuto) {
+                        settingsCodexFullAuto.addEventListener('change', () => {
+                            vscode.postMessage({
+                                type: 'settings-update',
+                                value: { key: 'codexFullAuto', value: settingsCodexFullAuto.checked },
+                            });
+                        });
+                    }
+
+                    // Claude configuration event listeners
+                    if (settingsClaudeModel) {
+                        settingsClaudeModel.addEventListener('change', () => {
+                            vscode.postMessage({
+                                type: 'settings-update',
+                                value: { key: 'claudeModel', value: settingsClaudeModel.value },
+                            });
+                        });
+                        settingsClaudeModel.addEventListener('blur', () => {
+                            vscode.postMessage({
+                                type: 'settings-update',
+                                value: { key: 'claudeModel', value: settingsClaudeModel.value },
+                            });
+                        });
+                    }
+
+                    if (settingsClaudeAgent) {
+                        settingsClaudeAgent.addEventListener('change', () => {
+                            vscode.postMessage({
+                                type: 'settings-update',
+                                value: { key: 'claudeAgent', value: settingsClaudeAgent.value },
+                            });
+                        });
+                        settingsClaudeAgent.addEventListener('blur', () => {
+                            vscode.postMessage({
+                                type: 'settings-update',
+                                value: { key: 'claudeAgent', value: settingsClaudeAgent.value },
+                            });
+                        });
+                    }
+
+                    if (settingsClaudeTools) {
+                        settingsClaudeTools.addEventListener('change', () => {
+                            vscode.postMessage({
+                                type: 'settings-update',
+                                value: { key: 'claudeTools', value: settingsClaudeTools.value },
+                            });
+                        });
+                        settingsClaudeTools.addEventListener('blur', () => {
+                            vscode.postMessage({
+                                type: 'settings-update',
+                                value: { key: 'claudeTools', value: settingsClaudeTools.value },
+                            });
+                        });
+                    }
+
+                    if (settingsClaudePermissionMode) {
+                        settingsClaudePermissionMode.addEventListener('change', () => {
+                            vscode.postMessage({
+                                type: 'settings-update',
+                                value: { key: 'claudePermissionMode', value: settingsClaudePermissionMode.value },
+                            });
+                        });
+                    }
+
+                    if (settingsClaudePermissionModeTrigger) {
+                        settingsClaudePermissionModeTrigger.addEventListener('click', event => {
+                            event.preventDefault();
+                            toggleSettingsSelect('settings-claude-permission-mode-wrap');
+                        });
+                    }
+
+                    // Open config buttons
+                    if (settingsPiOpenConfig) {
+                        settingsPiOpenConfig.addEventListener('click', () => {
+                            vscode.postMessage({ type: 'open-provider-config', value: 'pi' });
+                        });
+                    }
+
+                    if (settingsCodexOpenConfig) {
+                        settingsCodexOpenConfig.addEventListener('click', () => {
+                            vscode.postMessage({ type: 'open-provider-config', value: 'codex' });
+                        });
+                    }
+
+                    if (settingsClaudeOpenConfig) {
+                        settingsClaudeOpenConfig.addEventListener('click', () => {
+                            vscode.postMessage({ type: 'open-provider-config', value: 'claude' });
+                        });
+                    }
+
                     if (historySearchInput) {
                         const historySearchContainer = historySearchInput.closest('.history-search-container');
                         const historySearchClear = historySearchContainer ? historySearchContainer.querySelector('.history-search-clear') : null;
@@ -1125,6 +1621,78 @@ export const WEBVIEW_SCRIPT_INPUT = `
                                 updateSearchContainerState();
                                 renderHistoryList();
                                 historySearchInput.focus();
+                            });
+                        }
+                    }
+
+                    if (settingsSearchInput) {
+                        const settingsSearchContainer = settingsSearchInput.closest('.settings-search-container');
+                        const settingsSearchClear = settingsSearchContainer ? settingsSearchContainer.querySelector('.settings-search-clear') : null;
+
+                        function updateSettingsSearchContainerState() {
+                            if (settingsSearchContainer) {
+                                settingsSearchContainer.classList.toggle('has-value', Boolean(settingsSearchInput.value));
+                            }
+                        }
+
+                        function filterSettingsItems(query) {
+                            const normalizedQuery = String(query || '').trim().toLowerCase();
+                            const settingsContent = document.querySelector('.settings-content');
+                            if (!settingsContent) {
+                                return;
+                            }
+
+                            const sections = settingsContent.querySelectorAll('.settings-section');
+                            sections.forEach(section => {
+                                const items = section.querySelectorAll('.settings-item');
+                                let visibleItemCount = 0;
+
+                                items.forEach(item => {
+                                    if (!normalizedQuery) {
+                                        item.classList.remove('hidden-by-search');
+                                        visibleItemCount++;
+                                        return;
+                                    }
+
+                                    const label = item.querySelector('.settings-item-label');
+                                    const desc = item.querySelector('.settings-item-desc');
+                                    const labelText = label ? label.textContent.toLowerCase() : '';
+                                    const descText = desc ? desc.textContent.toLowerCase() : '';
+
+                                    if (labelText.includes(normalizedQuery) || descText.includes(normalizedQuery)) {
+                                        item.classList.remove('hidden-by-search');
+                                        visibleItemCount++;
+                                    } else {
+                                        item.classList.add('hidden-by-search');
+                                    }
+                                });
+
+                                const sectionTitle = section.querySelector('.settings-section-title');
+                                const sectionTitleText = sectionTitle ? sectionTitle.textContent.toLowerCase() : '';
+                                const sectionMatches = normalizedQuery && sectionTitleText.includes(normalizedQuery);
+
+                                if (sectionMatches) {
+                                    items.forEach(item => item.classList.remove('hidden-by-search'));
+                                    section.classList.remove('hidden-by-search');
+                                } else if (visibleItemCount > 0 || !normalizedQuery) {
+                                    section.classList.remove('hidden-by-search');
+                                } else {
+                                    section.classList.add('hidden-by-search');
+                                }
+                            });
+                        }
+
+                        settingsSearchInput.addEventListener('input', () => {
+                            updateSettingsSearchContainerState();
+                            filterSettingsItems(settingsSearchInput.value);
+                        });
+
+                        if (settingsSearchClear) {
+                            settingsSearchClear.addEventListener('click', () => {
+                                settingsSearchInput.value = '';
+                                updateSettingsSearchContainerState();
+                                filterSettingsItems('');
+                                settingsSearchInput.focus();
                             });
                         }
                     }
@@ -1342,6 +1910,42 @@ export const WEBVIEW_SCRIPT_INPUT = `
                         closeProviderMenu();
                     });
 
+                    // Copy button event handler (event delegation)
+                    container.addEventListener('click', event => {
+                        const target = event.target;
+                        if (!(target instanceof Element)) {
+                            return;
+                        }
+
+                        const copyBtn = target.closest('.copy-btn');
+                        if (!copyBtn) {
+                            return;
+                        }
+
+                        let textToCopy = copyBtn.getAttribute('data-copy-text') || '';
+
+                        // For streaming messages, get content from activeStreamState
+                        if (copyBtn.classList.contains('stream-copy-btn') && activeStreamState) {
+                            textToCopy = activeStreamState.targetContent || activeStreamState.targetThought || '';
+                        }
+
+                        if (!textToCopy) {
+                            return;
+                        }
+
+                        navigator.clipboard.writeText(textToCopy).then(() => {
+                            const originalText = copyBtn.innerHTML;
+                            copyBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"><path fill="currentColor" d="M9 16.17L4.83 12l-1.42 1.41L9 19L21 7l-1.41-1.41z"/></svg>';
+                            copyBtn.classList.add('copied');
+                            setTimeout(() => {
+                                copyBtn.innerHTML = originalText;
+                                copyBtn.classList.remove('copied');
+                            }, 1500);
+                        }).catch(err => {
+                            console.error('Failed to copy:', err);
+                        });
+                    });
+
                     window.addEventListener('resize', () => {
                         if (!providerSelectWrap || !providerSelectWrap.classList.contains('open')) {
                             return;
@@ -1353,6 +1957,9 @@ export const WEBVIEW_SCRIPT_INPUT = `
                     document.addEventListener('keydown', event => {
                         if (event.key === 'Escape') {
                             closeProviderMenu();
+                            if (statusModal && statusModal.getAttribute('aria-hidden') === 'false') {
+                                closeStatusModal();
+                            }
                         }
                     });
 
@@ -1364,6 +1971,9 @@ export const WEBVIEW_SCRIPT_INPUT = `
                                 : (msg.value && msg.value.provider === 'pi' ? 'pi' : 'codex');
                             setProvider(provider);
                             setNewSessionProvider(provider);
+                            if (msg.value && msg.value.stepDetailLevel) {
+                                stepDetailLevel = msg.value.stepDetailLevel;
+                            }
                             return;
                         }
 
@@ -1444,6 +2054,11 @@ export const WEBVIEW_SCRIPT_INPUT = `
                                 currentLanguage = value.language || currentLanguage;
                                 applyTranslations(value.translations);
                             }
+                            return;
+                        }
+
+                        if (msg.type === 'status-response') {
+                            renderStatusResponse(msg.value);
                             return;
                         }
 

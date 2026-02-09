@@ -301,12 +301,15 @@ export const WEBVIEW_SCRIPT_RENDER = `
                                 rendered.push(renderToolUseCard(part.value));
                                 continue;
                             }
-                            // Split text by double newlines to create separate paragraphs
-                            const newline = String.fromCharCode(10);
-                            const doubleNewline = newline + newline;
-                            const paragraphs = String(part.value || '').split(doubleNewline).map(p => p.trim()).filter(Boolean);
-                            for (const para of paragraphs) {
-                                rendered.push('<div class="thinking-text">' + escapeHtml(para) + '</div>');
+                            // Only show text content in full mode
+                            if (stepDetailLevel === 'full') {
+                                // Split text by double newlines to create separate paragraphs
+                                const newline = String.fromCharCode(10);
+                                const doubleNewline = newline + newline;
+                                const paragraphs = String(part.value || '').split(doubleNewline).map(p => p.trim()).filter(Boolean);
+                                for (const para of paragraphs) {
+                                    rendered.push('<div class="thinking-text">' + escapeHtml(para) + '</div>');
+                                }
                             }
                         }
                         return rendered.join('');

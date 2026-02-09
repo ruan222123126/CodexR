@@ -9,6 +9,89 @@ export const INPUT_STYLES = `
     display: flex; justify-content: center; align-items: center;
 }
 
+/* 首页模式 - 输入区域垂直居中 */
+body.home-mode #chat-container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+body.home-mode #input-area {
+    position: absolute;
+    top: 42%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: calc(100% - 30px);
+    max-width: 600px;
+    border-top: none;
+    padding: 20px 15px;
+}
+
+body.home-mode .obsidian-input-wrapper {
+    position: relative;
+}
+
+body.home-mode .recent-tasks-panel {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    max-height: calc(50vh - 100px);
+    overflow: hidden;
+}
+
+body.home-mode .recent-tasks-list {
+    margin-bottom: 0;
+    overflow-y: auto;
+}
+
+/* 主页模式下状态栏移到输入框上方 */
+body.home-mode .obsidian-status-bar {
+    order: -1;
+    margin-top: 0;
+    margin-bottom: 12px;
+}
+
+/* 版本号标签 */
+.version-tag {
+    display: none;
+}
+
+body.home-mode:not(.history-mode):not(.settings-mode) .version-tag {
+    display: block;
+    position: fixed;
+    left: 12px;
+    bottom: 12px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.25);
+    letter-spacing: 0.5px;
+}
+
+/* Made by 标签 */
+.made-by-tag {
+    display: none;
+}
+
+body.home-mode:not(.history-mode):not(.settings-mode) .made-by-tag {
+    display: block;
+    position: fixed;
+    right: 12px;
+    bottom: 12px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.25);
+    letter-spacing: 0.5px;
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+body.home-mode:not(.history-mode):not(.settings-mode) .made-by-tag:hover {
+    color: rgba(255, 255, 255, 0.5);
+}
+
 /* Obsidian 风格输入容器 */
 .obsidian-input-wrapper {
     width: 100%;
@@ -512,7 +595,7 @@ body.home-mode .recent-tasks-panel.collapsed .session-header {
     color: rgba(255, 255, 255, 0.9);
     border: none;
     border-radius: 0;
-    padding: 13px 0 3px;
+    padding: 8px 0 8px;
     resize: none;
     height: auto;
     min-height: 44px;
@@ -570,7 +653,9 @@ body.home-mode .recent-tasks-panel.collapsed .session-header {
 }
 
 .obsidian-send-btn {
-    padding: 10px;
+    width: 38px;
+    height: 38px;
+    padding: 0;
     margin: 2px;
     background: rgba(255, 255, 255, 0.9);
     color: #000;
@@ -584,6 +669,7 @@ body.home-mode .recent-tasks-panel.collapsed .session-header {
     box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
     overflow: hidden;
     position: relative;
+    flex-shrink: 0;
 }
 
 .obsidian-send-btn:hover {

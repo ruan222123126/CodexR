@@ -4,8 +4,6 @@
 export const HISTORY_STYLES = `
 .history-page {
     display: none;
-    flex: 1;
-    min-height: 0;
     padding: 14px 14px 10px;
     box-sizing: border-box;
     background: var(--vscode-editor-background);
@@ -18,6 +16,9 @@ body.history-mode .history-page {
     display: flex;
     flex-direction: column;
     gap: 12px;
+    flex: 1 1 0;
+    min-height: 0;
+    overflow: hidden;
 }
 
 .history-page-topbar {

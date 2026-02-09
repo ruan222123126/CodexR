@@ -9,6 +9,20 @@ export class ProviderBuilder {
         private readonly externalShouldAutoResumePiSession: () => boolean,
         private readonly externalShouldDisableClaudeThinking: () => boolean = () => false,
         private readonly externalShouldDisablePiThinking: () => boolean = () => false,
+        private readonly externalGetPiModel: () => string = () => '',
+        private readonly externalGetPiApiKey: () => string = () => '',
+        private readonly externalGetPiThinkingLevel: () => string = () => 'default',
+        private readonly externalGetCodexConfigOverrides: () => string = () => '',
+        private readonly externalGetCodexModel: () => string = () => '',
+        private readonly externalShouldUseCodexOss: () => boolean = () => false,
+        private readonly externalGetCodexProfile: () => string = () => '',
+        private readonly externalGetClaudeModel: () => string = () => '',
+        private readonly externalGetClaudeAgent: () => string = () => '',
+        private readonly externalGetClaudeTools: () => string = () => '',
+        private readonly externalGetClaudePermissionMode: () => 'dangerouslySkip' | 'allowDangerouslySkip' | 'default' = () => 'dangerouslySkip',
+        private readonly externalGetCodexSandboxMode: () => 'default' | 'read-only' | 'workspace-write' | 'danger-full-access' = () => 'default',
+        private readonly externalGetCodexApprovalPolicy: () => 'default' | 'untrusted' | 'on-failure' | 'never' = () => 'default',
+        private readonly externalShouldUseCodexFullAuto: () => boolean = () => false,
     ) {}
 
     buildProviderCommand(session: ChatSession): ProviderCommand {
@@ -35,7 +49,8 @@ export class ProviderBuilder {
                     ...(this.externalShouldDisableClaudeThinking() ? [] : ['--verbose']),
                     '--output-format',
                     'stream-json',
-                    '--dangerously-skip-permissions',
+                    ...this.buildClaudePermissionArgs(),
+                    ...this.buildClaudeOptionalArgs(),
                     '--session-id',
                     sessionId,
                 ],
@@ -52,14 +67,31 @@ export class ProviderBuilder {
                 session.needsBootstrapContext = true;
             }
 
+            const piModel = this.externalGetPiModel();
+            const piApiKey = this.externalGetPiApiKey();
+            const piThinkingLevel = this.externalGetPiThinkingLevel();
+
+            const modelArgs: string[] = piModel ? ['--model', piModel] : [];
+            const apiKeyArgs: string[] = piApiKey ? ['--api-key', piApiKey] : [];
+
+            // Determine thinking args: piThinkingLevel takes precedence over piDisableThinking
+            let thinkingArgs: string[] = [];
+            if (piThinkingLevel && piThinkingLevel !== 'default') {
+                thinkingArgs = ['--thinking', piThinkingLevel];
+            } else if (this.externalShouldDisablePiThinking()) {
+                thinkingArgs = ['--thinking', 'off'];
+            }
+
             return {
                 command: 'pi',
                 args: [
                     '-p',
                     '--mode',
                     'json',
+                    ...modelArgs,
+                    ...apiKeyArgs,
                     ...(this.externalShouldAutoResumePiSession() ? ['--continue'] : []),
-                    ...(this.externalShouldDisablePiThinking() ? ['--thinking', 'off'] : []),
+                    ...thinkingArgs,
                 ],
                 promptViaStdin: true,
                 versionArgs: ['--version'],
@@ -76,6 +108,7 @@ export class ProviderBuilder {
             return {
                 command: 'codex',
                 args: [
+                    ...this.buildCodexGlobalArgs(),
                     'exec',
                     'resume',
                     session.backendSessionId,
@@ -92,6 +125,7 @@ export class ProviderBuilder {
         return {
             command: 'codex',
             args: [
+                ...this.buildCodexGlobalArgs(),
                 'exec',
                 '--dangerously-bypass-approvals-and-sandbox',
                 '--skip-git-repo-check',
@@ -100,6 +134,80 @@ export class ProviderBuilder {
             versionArgs: ['--version'],
             usesNativeSession: false,
         };
+    }
+
+    private buildCodexGlobalArgs(): string[] {
+        const args: string[] = [];
+
+        const configOverrides = this.externalGetCodexConfigOverrides();
+        if (configOverrides) {
+            args.push('-c', configOverrides);
+        }
+
+        const model = this.externalGetCodexModel();
+        if (model) {
+            args.push('-m', model);
+        }
+
+        if (this.externalShouldUseCodexOss()) {
+            args.push('--oss');
+        }
+
+        const profile = this.externalGetCodexProfile();
+        if (profile) {
+            args.push('-p', profile);
+        }
+
+        // Full auto mode takes precedence over individual sandbox/approval settings
+        if (this.externalShouldUseCodexFullAuto()) {
+            args.push('--full-auto');
+        } else {
+            // Sandbox mode
+            const sandboxMode = this.externalGetCodexSandboxMode();
+            if (sandboxMode !== 'default') {
+                args.push('-s', sandboxMode);
+            }
+
+            // Approval policy
+            const approvalPolicy = this.externalGetCodexApprovalPolicy();
+            if (approvalPolicy !== 'default') {
+                args.push('-a', approvalPolicy);
+            }
+        }
+
+        return args;
+    }
+
+    private buildClaudePermissionArgs(): string[] {
+        const mode = this.externalGetClaudePermissionMode();
+        if (mode === 'dangerouslySkip') {
+            return ['--dangerously-skip-permissions'];
+        }
+        if (mode === 'allowDangerouslySkip') {
+            return ['--allow-dangerously-skip-permissions'];
+        }
+        return [];
+    }
+
+    private buildClaudeOptionalArgs(): string[] {
+        const args: string[] = [];
+
+        const model = this.externalGetClaudeModel();
+        if (model) {
+            args.push('--model', model);
+        }
+
+        const agent = this.externalGetClaudeAgent();
+        if (agent) {
+            args.push('--agent', agent);
+        }
+
+        const tools = this.externalGetClaudeTools();
+        if (tools) {
+            args.push('--tools', tools);
+        }
+
+        return args;
     }
 
     isCommandAvailable(command: string, versionArgs: string[], cwd: string): boolean {

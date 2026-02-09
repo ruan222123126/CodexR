@@ -17,6 +17,7 @@ export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri
     const titleMode = Config.getTitleGenerationMode();
     const titleFixedProvider = Config.getTitleFixedProvider();
     const language = Config.getLanguage();
+    const stepDetailLevel = Config.getStepDetailLevel();
     const t = getTranslations(language);
 
     const langEnSelected = language === 'en' ? 'selected' : '';
@@ -76,6 +77,13 @@ export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
                                 <line x1="12" y1="5" x2="12" y2="19"></line>
                                 <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                        </button>
+                        <button id="status-btn" class="toolbar-status-btn" title="${t['status.modalTitle']}" data-i18n-title="status.modalTitle">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="12" y1="8" x2="12" y2="12"></line>
+                                <line x1="12" y1="16" x2="12.01" y2="16"></line>
                             </svg>
                         </button>
                         <button id="settings-btn" class="toolbar-settings-btn" title="${t['toolbar.settings']}" data-i18n-title="toolbar.settings">
@@ -177,6 +185,23 @@ export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri
                             </div>
                         </div>
                     </div>
+                    <div class="settings-search-wrap">
+                        <div class="settings-search-container">
+                            <span class="settings-search-icon" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="11" cy="11" r="7"></circle>
+                                    <path d="M21 21l-4-4"></path>
+                                </svg>
+                            </span>
+                            <input id="settings-search-input" class="settings-search-input" type="text" placeholder="${t['settings.searchPlaceholder']}" data-i18n-placeholder="settings.searchPlaceholder" />
+                            <button class="settings-search-clear" type="button" aria-label="Clear search">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
                     <div class="settings-content">
                         <div class="settings-section">
                             <div class="settings-section-title" data-i18n="settings.general">${t['settings.general']}</div>
@@ -230,6 +255,44 @@ export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri
                                     <input type="checkbox" id="settings-show-tool-indicator" />
                                     <span class="settings-toggle-slider"></span>
                                 </label>
+                            </div>
+                            <div class="settings-item">
+                                <div class="settings-item-info">
+                                    <span class="settings-item-label" data-i18n="settings.stepDetailLevel">${t['settings.stepDetailLevel']}</span>
+                                    <span class="settings-item-desc" data-i18n="settings.stepDetailLevelDesc">${t['settings.stepDetailLevelDesc']}</span>
+                                </div>
+                                <div id="settings-step-detail-level-wrap" class="settings-select-wrap">
+                                    <button
+                                        id="settings-step-detail-level-trigger"
+                                        class="settings-select-trigger"
+                                        type="button"
+                                        aria-haspopup="listbox"
+                                        aria-expanded="false"
+                                    >
+                                        <span id="settings-step-detail-level-label" class="settings-select-label">${stepDetailLevel === 'full' ? t['settings.stepDetailLevelFull'] : t['settings.stepDetailLevelCompact']}</span>
+                                        <svg class="settings-select-chevron" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                                            <polyline points="6 9 12 15 18 9"></polyline>
+                                        </svg>
+                                    </button>
+                                    <div id="settings-step-detail-level-menu" class="settings-select-menu" role="listbox">
+                                        <button type="button" class="settings-select-option" data-settings-option="compact" data-settings-select="step-detail-level" role="option" aria-selected="${stepDetailLevel === 'compact'}" data-i18n="settings.stepDetailLevelCompact">
+                                            <span class="settings-select-option-text">
+                                                <span class="settings-select-option-main">${t['settings.stepDetailLevelCompact']}</span>
+                                            </span>
+                                            <span class="settings-select-option-check">✓</span>
+                                        </button>
+                                        <button type="button" class="settings-select-option" data-settings-option="full" data-settings-select="step-detail-level" role="option" aria-selected="${stepDetailLevel === 'full'}" data-i18n="settings.stepDetailLevelFull">
+                                            <span class="settings-select-option-text">
+                                                <span class="settings-select-option-main">${t['settings.stepDetailLevelFull']}</span>
+                                            </span>
+                                            <span class="settings-select-option-check">✓</span>
+                                        </button>
+                                    </div>
+                                    <select id="settings-step-detail-level" class="settings-select-native" tabindex="-1" aria-hidden="true">
+                                        <option value="compact" ${stepDetailLevel === 'compact' ? 'selected' : ''} data-i18n="settings.stepDetailLevelCompact">${t['settings.stepDetailLevelCompact']}</option>
+                                        <option value="full" ${stepDetailLevel === 'full' ? 'selected' : ''} data-i18n="settings.stepDetailLevelFull">${t['settings.stepDetailLevelFull']}</option>
+                                    </select>
+                                </div>
                             </div>
                             <div class="settings-item">
                                 <div class="settings-item-info">
@@ -395,6 +458,355 @@ export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri
                                 </div>
                             </div>
                         </div>
+                        <div class="settings-section">
+                            <div class="settings-section-title" data-i18n="settings.piConfig">${t['settings.piConfig']}</div>
+                            <div class="settings-item">
+                                <div class="settings-item-info">
+                                    <span class="settings-item-label" data-i18n="settings.openConfig">${t['settings.openConfig']}</span>
+                                    <span class="settings-item-desc" data-i18n="settings.openConfigDesc">${t['settings.openConfigDesc']}</span>
+                                </div>
+                                <button id="settings-pi-open-config" class="settings-open-config-btn" type="button" data-provider="pi" title="${t['settings.openConfig']}" data-i18n-title="settings.openConfig">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                                        <polyline points="15 3 21 3 21 9"></polyline>
+                                        <line x1="10" y1="14" x2="21" y2="3"></line>
+                                    </svg>
+                                    <span data-i18n="settings.openConfig">${t['settings.openConfig']}</span>
+                                </button>
+                            </div>
+                            <div class="settings-item">
+                                <div class="settings-item-info">
+                                    <span class="settings-item-label" data-i18n="settings.piModel">${t['settings.piModel']}</span>
+                                    <span class="settings-item-desc" data-i18n="settings.piModelDesc">${t['settings.piModelDesc']}</span>
+                                </div>
+                                <input type="text" id="settings-pi-model" class="settings-text-input" value="" placeholder="" />
+                            </div>
+                            <div class="settings-item">
+                                <div class="settings-item-info">
+                                    <span class="settings-item-label" data-i18n="settings.piApiKey">${t['settings.piApiKey']}</span>
+                                    <span class="settings-item-desc" data-i18n="settings.piApiKeyDesc">${t['settings.piApiKeyDesc']}</span>
+                                </div>
+                                <input type="password" id="settings-pi-api-key" class="settings-text-input" value="" placeholder="${t['settings.piApiKeyPlaceholder']}" data-i18n-placeholder="settings.piApiKeyPlaceholder" />
+                            </div>
+                            <div class="settings-item">
+                                <div class="settings-item-info">
+                                    <span class="settings-item-label" data-i18n="settings.piThinkingLevel">${t['settings.piThinkingLevel']}</span>
+                                    <span class="settings-item-desc" data-i18n="settings.piThinkingLevelDesc">${t['settings.piThinkingLevelDesc']}</span>
+                                </div>
+                                <div id="settings-pi-thinking-level-wrap" class="settings-select-wrap">
+                                    <button
+                                        id="settings-pi-thinking-level-trigger"
+                                        class="settings-select-trigger"
+                                        type="button"
+                                        aria-haspopup="listbox"
+                                        aria-expanded="false"
+                                    >
+                                        <span id="settings-pi-thinking-level-label" class="settings-select-label">${t['settings.piThinkingLevelDefault']}</span>
+                                        <svg class="settings-select-chevron" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                                            <polyline points="6 9 12 15 18 9"></polyline>
+                                        </svg>
+                                    </button>
+                                    <div id="settings-pi-thinking-level-menu" class="settings-select-menu" role="listbox">
+                                        <button type="button" class="settings-select-option" data-settings-option="default" data-settings-select="pi-thinking-level" role="option" aria-selected="true" data-i18n="settings.piThinkingLevelDefault">
+                                            <span class="settings-select-option-text">
+                                                <span class="settings-select-option-main">${t['settings.piThinkingLevelDefault']}</span>
+                                            </span>
+                                            <span class="settings-select-option-check">✓</span>
+                                        </button>
+                                        <button type="button" class="settings-select-option" data-settings-option="off" data-settings-select="pi-thinking-level" role="option" aria-selected="false">
+                                            <span class="settings-select-option-text">
+                                                <span class="settings-select-option-main">Off</span>
+                                            </span>
+                                            <span class="settings-select-option-check">✓</span>
+                                        </button>
+                                        <button type="button" class="settings-select-option" data-settings-option="minimal" data-settings-select="pi-thinking-level" role="option" aria-selected="false">
+                                            <span class="settings-select-option-text">
+                                                <span class="settings-select-option-main">Minimal</span>
+                                            </span>
+                                            <span class="settings-select-option-check">✓</span>
+                                        </button>
+                                        <button type="button" class="settings-select-option" data-settings-option="low" data-settings-select="pi-thinking-level" role="option" aria-selected="false">
+                                            <span class="settings-select-option-text">
+                                                <span class="settings-select-option-main">Low</span>
+                                            </span>
+                                            <span class="settings-select-option-check">✓</span>
+                                        </button>
+                                        <button type="button" class="settings-select-option" data-settings-option="medium" data-settings-select="pi-thinking-level" role="option" aria-selected="false">
+                                            <span class="settings-select-option-text">
+                                                <span class="settings-select-option-main">Medium</span>
+                                            </span>
+                                            <span class="settings-select-option-check">✓</span>
+                                        </button>
+                                        <button type="button" class="settings-select-option" data-settings-option="high" data-settings-select="pi-thinking-level" role="option" aria-selected="false">
+                                            <span class="settings-select-option-text">
+                                                <span class="settings-select-option-main">High</span>
+                                            </span>
+                                            <span class="settings-select-option-check">✓</span>
+                                        </button>
+                                        <button type="button" class="settings-select-option" data-settings-option="xhigh" data-settings-select="pi-thinking-level" role="option" aria-selected="false">
+                                            <span class="settings-select-option-text">
+                                                <span class="settings-select-option-main">XHigh</span>
+                                            </span>
+                                            <span class="settings-select-option-check">✓</span>
+                                        </button>
+                                    </div>
+                                    <select id="settings-pi-thinking-level" class="settings-select-native" tabindex="-1" aria-hidden="true">
+                                        <option value="default" selected>${t['settings.piThinkingLevelDefault']}</option>
+                                        <option value="off">Off</option>
+                                        <option value="minimal">Minimal</option>
+                                        <option value="low">Low</option>
+                                        <option value="medium">Medium</option>
+                                        <option value="high">High</option>
+                                        <option value="xhigh">XHigh</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="settings-section">
+                            <div class="settings-section-title" data-i18n="settings.codexConfig">${t['settings.codexConfig']}</div>
+                            <div class="settings-item">
+                                <div class="settings-item-info">
+                                    <span class="settings-item-label" data-i18n="settings.openConfig">${t['settings.openConfig']}</span>
+                                    <span class="settings-item-desc" data-i18n="settings.openConfigDesc">${t['settings.openConfigDesc']}</span>
+                                </div>
+                                <button id="settings-codex-open-config" class="settings-open-config-btn" type="button" data-provider="codex" title="${t['settings.openConfig']}" data-i18n-title="settings.openConfig">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                                        <polyline points="15 3 21 3 21 9"></polyline>
+                                        <line x1="10" y1="14" x2="21" y2="3"></line>
+                                    </svg>
+                                    <span data-i18n="settings.openConfig">${t['settings.openConfig']}</span>
+                                </button>
+                            </div>
+                            <div class="settings-item">
+                                <div class="settings-item-info">
+                                    <span class="settings-item-label" data-i18n="settings.codexModel">${t['settings.codexModel']}</span>
+                                    <span class="settings-item-desc" data-i18n="settings.codexModelDesc">${t['settings.codexModelDesc']}</span>
+                                </div>
+                                <input type="text" id="settings-codex-model" class="settings-text-input" value="" placeholder="${t['settings.codexModelPlaceholder']}" data-i18n-placeholder="settings.codexModelPlaceholder" />
+                            </div>
+                            <div class="settings-item">
+                                <div class="settings-item-info">
+                                    <span class="settings-item-label" data-i18n="settings.codexConfigOverrides">${t['settings.codexConfigOverrides']}</span>
+                                    <span class="settings-item-desc" data-i18n="settings.codexConfigOverridesDesc">${t['settings.codexConfigOverridesDesc']}</span>
+                                </div>
+                                <input type="text" id="settings-codex-config-overrides" class="settings-text-input" value="" placeholder="${t['settings.codexConfigOverridesPlaceholder']}" data-i18n-placeholder="settings.codexConfigOverridesPlaceholder" />
+                            </div>
+                            <div class="settings-item">
+                                <div class="settings-item-info">
+                                    <span class="settings-item-label" data-i18n="settings.codexProfile">${t['settings.codexProfile']}</span>
+                                    <span class="settings-item-desc" data-i18n="settings.codexProfileDesc">${t['settings.codexProfileDesc']}</span>
+                                </div>
+                                <input type="text" id="settings-codex-profile" class="settings-text-input" value="" placeholder="${t['settings.codexProfilePlaceholder']}" data-i18n-placeholder="settings.codexProfilePlaceholder" />
+                            </div>
+                            <div class="settings-item">
+                                <div class="settings-item-info">
+                                    <span class="settings-item-label" data-i18n="settings.codexOss">${t['settings.codexOss']}</span>
+                                    <span class="settings-item-desc" data-i18n="settings.codexOssDesc">${t['settings.codexOssDesc']}</span>
+                                </div>
+                                <label class="settings-toggle">
+                                    <input type="checkbox" id="settings-codex-oss" />
+                                    <span class="settings-toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="settings-item">
+                                <div class="settings-item-info">
+                                    <span class="settings-item-label" data-i18n="settings.codexSandboxMode">${t['settings.codexSandboxMode']}</span>
+                                    <span class="settings-item-desc" data-i18n="settings.codexSandboxModeDesc">${t['settings.codexSandboxModeDesc']}</span>
+                                </div>
+                                <div id="settings-codex-sandbox-mode-wrap" class="settings-select-wrap">
+                                    <button
+                                        id="settings-codex-sandbox-mode-trigger"
+                                        class="settings-select-trigger"
+                                        type="button"
+                                        aria-haspopup="listbox"
+                                        aria-expanded="false"
+                                    >
+                                        <span id="settings-codex-sandbox-mode-label" class="settings-select-label">${t['settings.codexSandboxModeDefault']}</span>
+                                        <svg class="settings-select-chevron" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                                            <polyline points="6 9 12 15 18 9"></polyline>
+                                        </svg>
+                                    </button>
+                                    <div id="settings-codex-sandbox-mode-menu" class="settings-select-menu" role="listbox">
+                                        <button type="button" class="settings-select-option" data-settings-option="default" data-settings-select="codex-sandbox-mode" role="option" aria-selected="true" data-i18n="settings.codexSandboxModeDefault">
+                                            <span class="settings-select-option-text">
+                                                <span class="settings-select-option-main">${t['settings.codexSandboxModeDefault']}</span>
+                                            </span>
+                                            <span class="settings-select-option-check">✓</span>
+                                        </button>
+                                        <button type="button" class="settings-select-option" data-settings-option="read-only" data-settings-select="codex-sandbox-mode" role="option" aria-selected="false" data-i18n="settings.codexSandboxModeReadOnly">
+                                            <span class="settings-select-option-text">
+                                                <span class="settings-select-option-main">${t['settings.codexSandboxModeReadOnly']}</span>
+                                            </span>
+                                            <span class="settings-select-option-check">✓</span>
+                                        </button>
+                                        <button type="button" class="settings-select-option" data-settings-option="workspace-write" data-settings-select="codex-sandbox-mode" role="option" aria-selected="false" data-i18n="settings.codexSandboxModeWorkspaceWrite">
+                                            <span class="settings-select-option-text">
+                                                <span class="settings-select-option-main">${t['settings.codexSandboxModeWorkspaceWrite']}</span>
+                                            </span>
+                                            <span class="settings-select-option-check">✓</span>
+                                        </button>
+                                        <button type="button" class="settings-select-option" data-settings-option="danger-full-access" data-settings-select="codex-sandbox-mode" role="option" aria-selected="false" data-i18n="settings.codexSandboxModeDangerFullAccess">
+                                            <span class="settings-select-option-text">
+                                                <span class="settings-select-option-main">${t['settings.codexSandboxModeDangerFullAccess']}</span>
+                                            </span>
+                                            <span class="settings-select-option-check">✓</span>
+                                        </button>
+                                    </div>
+                                    <select id="settings-codex-sandbox-mode" class="settings-select-native" tabindex="-1" aria-hidden="true">
+                                        <option value="default" selected>${t['settings.codexSandboxModeDefault']}</option>
+                                        <option value="read-only">${t['settings.codexSandboxModeReadOnly']}</option>
+                                        <option value="workspace-write">${t['settings.codexSandboxModeWorkspaceWrite']}</option>
+                                        <option value="danger-full-access">${t['settings.codexSandboxModeDangerFullAccess']}</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="settings-item">
+                                <div class="settings-item-info">
+                                    <span class="settings-item-label" data-i18n="settings.codexApprovalPolicy">${t['settings.codexApprovalPolicy']}</span>
+                                    <span class="settings-item-desc" data-i18n="settings.codexApprovalPolicyDesc">${t['settings.codexApprovalPolicyDesc']}</span>
+                                </div>
+                                <div id="settings-codex-approval-policy-wrap" class="settings-select-wrap">
+                                    <button
+                                        id="settings-codex-approval-policy-trigger"
+                                        class="settings-select-trigger"
+                                        type="button"
+                                        aria-haspopup="listbox"
+                                        aria-expanded="false"
+                                    >
+                                        <span id="settings-codex-approval-policy-label" class="settings-select-label">${t['settings.codexApprovalPolicyDefault']}</span>
+                                        <svg class="settings-select-chevron" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                                            <polyline points="6 9 12 15 18 9"></polyline>
+                                        </svg>
+                                    </button>
+                                    <div id="settings-codex-approval-policy-menu" class="settings-select-menu" role="listbox">
+                                        <button type="button" class="settings-select-option" data-settings-option="default" data-settings-select="codex-approval-policy" role="option" aria-selected="true" data-i18n="settings.codexApprovalPolicyDefault">
+                                            <span class="settings-select-option-text">
+                                                <span class="settings-select-option-main">${t['settings.codexApprovalPolicyDefault']}</span>
+                                            </span>
+                                            <span class="settings-select-option-check">✓</span>
+                                        </button>
+                                        <button type="button" class="settings-select-option" data-settings-option="untrusted" data-settings-select="codex-approval-policy" role="option" aria-selected="false" data-i18n="settings.codexApprovalPolicyUntrusted">
+                                            <span class="settings-select-option-text">
+                                                <span class="settings-select-option-main">${t['settings.codexApprovalPolicyUntrusted']}</span>
+                                            </span>
+                                            <span class="settings-select-option-check">✓</span>
+                                        </button>
+                                        <button type="button" class="settings-select-option" data-settings-option="on-failure" data-settings-select="codex-approval-policy" role="option" aria-selected="false" data-i18n="settings.codexApprovalPolicyOnFailure">
+                                            <span class="settings-select-option-text">
+                                                <span class="settings-select-option-main">${t['settings.codexApprovalPolicyOnFailure']}</span>
+                                            </span>
+                                            <span class="settings-select-option-check">✓</span>
+                                        </button>
+                                        <button type="button" class="settings-select-option" data-settings-option="never" data-settings-select="codex-approval-policy" role="option" aria-selected="false" data-i18n="settings.codexApprovalPolicyNever">
+                                            <span class="settings-select-option-text">
+                                                <span class="settings-select-option-main">${t['settings.codexApprovalPolicyNever']}</span>
+                                            </span>
+                                            <span class="settings-select-option-check">✓</span>
+                                        </button>
+                                    </div>
+                                    <select id="settings-codex-approval-policy" class="settings-select-native" tabindex="-1" aria-hidden="true">
+                                        <option value="default" selected>${t['settings.codexApprovalPolicyDefault']}</option>
+                                        <option value="untrusted">${t['settings.codexApprovalPolicyUntrusted']}</option>
+                                        <option value="on-failure">${t['settings.codexApprovalPolicyOnFailure']}</option>
+                                        <option value="never">${t['settings.codexApprovalPolicyNever']}</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="settings-item">
+                                <div class="settings-item-info">
+                                    <span class="settings-item-label" data-i18n="settings.codexFullAuto">${t['settings.codexFullAuto']}</span>
+                                    <span class="settings-item-desc" data-i18n="settings.codexFullAutoDesc">${t['settings.codexFullAutoDesc']}</span>
+                                </div>
+                                <label class="settings-toggle">
+                                    <input type="checkbox" id="settings-codex-full-auto" />
+                                    <span class="settings-toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="settings-section">
+                            <div class="settings-section-title" data-i18n="settings.claudeConfig">${t['settings.claudeConfig']}</div>
+                            <div class="settings-item">
+                                <div class="settings-item-info">
+                                    <span class="settings-item-label" data-i18n="settings.openConfig">${t['settings.openConfig']}</span>
+                                    <span class="settings-item-desc" data-i18n="settings.openConfigDesc">${t['settings.openConfigDesc']}</span>
+                                </div>
+                                <button id="settings-claude-open-config" class="settings-open-config-btn" type="button" data-provider="claude" title="${t['settings.openConfig']}" data-i18n-title="settings.openConfig">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                                        <polyline points="15 3 21 3 21 9"></polyline>
+                                        <line x1="10" y1="14" x2="21" y2="3"></line>
+                                    </svg>
+                                    <span data-i18n="settings.openConfig">${t['settings.openConfig']}</span>
+                                </button>
+                            </div>
+                            <div class="settings-item">
+                                <div class="settings-item-info">
+                                    <span class="settings-item-label" data-i18n="settings.claudeModel">${t['settings.claudeModel']}</span>
+                                    <span class="settings-item-desc" data-i18n="settings.claudeModelDesc">${t['settings.claudeModelDesc']}</span>
+                                </div>
+                                <input type="text" id="settings-claude-model" class="settings-text-input" value="" placeholder="${t['settings.claudeModelPlaceholder']}" data-i18n-placeholder="settings.claudeModelPlaceholder" />
+                            </div>
+                            <div class="settings-item">
+                                <div class="settings-item-info">
+                                    <span class="settings-item-label" data-i18n="settings.claudeAgent">${t['settings.claudeAgent']}</span>
+                                    <span class="settings-item-desc" data-i18n="settings.claudeAgentDesc">${t['settings.claudeAgentDesc']}</span>
+                                </div>
+                                <input type="text" id="settings-claude-agent" class="settings-text-input" value="" placeholder="${t['settings.claudeAgentPlaceholder']}" data-i18n-placeholder="settings.claudeAgentPlaceholder" />
+                            </div>
+                            <div class="settings-item">
+                                <div class="settings-item-info">
+                                    <span class="settings-item-label" data-i18n="settings.claudeTools">${t['settings.claudeTools']}</span>
+                                    <span class="settings-item-desc" data-i18n="settings.claudeToolsDesc">${t['settings.claudeToolsDesc']}</span>
+                                </div>
+                                <input type="text" id="settings-claude-tools" class="settings-text-input" value="" placeholder="${t['settings.claudeToolsPlaceholder']}" data-i18n-placeholder="settings.claudeToolsPlaceholder" />
+                            </div>
+                            <div class="settings-item">
+                                <div class="settings-item-info">
+                                    <span class="settings-item-label" data-i18n="settings.claudePermissionMode">${t['settings.claudePermissionMode']}</span>
+                                    <span class="settings-item-desc" data-i18n="settings.claudePermissionModeDesc">${t['settings.claudePermissionModeDesc']}</span>
+                                </div>
+                                <div id="settings-claude-permission-mode-wrap" class="settings-select-wrap">
+                                    <button
+                                        id="settings-claude-permission-mode-trigger"
+                                        class="settings-select-trigger"
+                                        type="button"
+                                        aria-haspopup="listbox"
+                                        aria-expanded="false"
+                                    >
+                                        <span id="settings-claude-permission-mode-label" class="settings-select-label">${t['settings.claudePermissionModeDangerouslySkip']}</span>
+                                        <svg class="settings-select-chevron" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                                            <polyline points="6 9 12 15 18 9"></polyline>
+                                        </svg>
+                                    </button>
+                                    <div id="settings-claude-permission-mode-menu" class="settings-select-menu" role="listbox">
+                                        <button type="button" class="settings-select-option" data-settings-option="dangerouslySkip" data-settings-select="claude-permission-mode" role="option" aria-selected="true" data-i18n="settings.claudePermissionModeDangerouslySkip">
+                                            <span class="settings-select-option-text">
+                                                <span class="settings-select-option-main">${t['settings.claudePermissionModeDangerouslySkip']}</span>
+                                            </span>
+                                            <span class="settings-select-option-check">✓</span>
+                                        </button>
+                                        <button type="button" class="settings-select-option" data-settings-option="allowDangerouslySkip" data-settings-select="claude-permission-mode" role="option" aria-selected="false" data-i18n="settings.claudePermissionModeAllowDangerouslySkip">
+                                            <span class="settings-select-option-text">
+                                                <span class="settings-select-option-main">${t['settings.claudePermissionModeAllowDangerouslySkip']}</span>
+                                            </span>
+                                            <span class="settings-select-option-check">✓</span>
+                                        </button>
+                                        <button type="button" class="settings-select-option" data-settings-option="default" data-settings-select="claude-permission-mode" role="option" aria-selected="false" data-i18n="settings.claudePermissionModeDefault">
+                                            <span class="settings-select-option-text">
+                                                <span class="settings-select-option-main">${t['settings.claudePermissionModeDefault']}</span>
+                                            </span>
+                                            <span class="settings-select-option-check">✓</span>
+                                        </button>
+                                    </div>
+                                    <select id="settings-claude-permission-mode" class="settings-select-native" tabindex="-1" aria-hidden="true">
+                                        <option value="dangerouslySkip" selected>${t['settings.claudePermissionModeDangerouslySkip']}</option>
+                                        <option value="allowDangerouslySkip">${t['settings.claudePermissionModeAllowDangerouslySkip']}</option>
+                                        <option value="default">${t['settings.claudePermissionModeDefault']}</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div id="chat-container"></div>
@@ -491,6 +903,44 @@ export function getWebviewHtml(webview: vscode.Webview, extensionUri: vscode.Uri
                             </div>
                         </div>
                         <div id="hint-text" class="obsidian-hint-text"></div>
+                    </div>
+                </div>
+                <div id="version-tag" class="version-tag">v0.0.1</div>
+                <a id="made-by-tag" class="made-by-tag" href="https://github.com/ruan222123126/CodexR/tree/linux" target="_blank">MADE FOR RUAN</a>
+                <div id="status-modal" class="status-modal" aria-hidden="true">
+                    <div class="status-modal-backdrop"></div>
+                    <div class="status-modal-container">
+                        <div class="status-modal-header">
+                            <span class="status-modal-title" data-i18n="status.modalTitle">${t['status.modalTitle']}</span>
+                            <button id="status-modal-refresh" class="status-modal-btn" data-i18n="status.refresh">${t['status.refresh']}</button>
+                            <button id="status-modal-close" class="status-modal-close" title="${t['status.close']}" data-i18n-title="status.close">&times;</button>
+                        </div>
+                        <div class="status-modal-content">
+                            <div class="status-section" data-provider="claude">
+                                <div class="status-section-header">
+                                    <span class="status-provider-badge claude">Claude</span>
+                                    <span class="status-section-label" data-i18n="status.mcpServers">${t['status.mcpServers']}</span>
+                                    <span id="claude-status-indicator" class="status-indicator"></span>
+                                </div>
+                                <div id="claude-mcp-list" class="status-list"></div>
+                            </div>
+                            <div class="status-section" data-provider="codex">
+                                <div class="status-section-header">
+                                    <span class="status-provider-badge codex">Codex</span>
+                                    <span class="status-section-label" data-i18n="status.mcpServers">${t['status.mcpServers']}</span>
+                                    <span id="codex-status-indicator" class="status-indicator"></span>
+                                </div>
+                                <div id="codex-mcp-list" class="status-list"></div>
+                            </div>
+                            <div class="status-section" data-provider="pi">
+                                <div class="status-section-header">
+                                    <span class="status-provider-badge pi">Pi</span>
+                                    <span class="status-section-label" data-i18n="status.extensions">${t['status.extensions']}</span>
+                                    <span id="pi-status-indicator" class="status-indicator"></span>
+                                </div>
+                                <div id="pi-ext-list" class="status-list"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 ${script}

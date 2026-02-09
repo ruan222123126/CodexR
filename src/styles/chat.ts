@@ -11,7 +11,9 @@ body.history-mode #chat-container,
 body.history-mode #input-area,
 body.settings-mode #chat-container,
 body.settings-mode #input-area {
-    display: none;
+    display: none !important;
+    position: static !important;
+    flex: 0 !important;
 }
 
 .message {
@@ -28,6 +30,28 @@ body.settings-mode #input-area {
     background-color: var(--vscode-button-background);
     color: var(--vscode-button-foreground);
 }
+
+/* 用户消息包装器 - 复制按钮在消息外部 */
+.user-message-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    align-self: flex-end;
+}
+.user-message-wrapper .user-actions {
+    opacity: 0;
+    transition: opacity 0.15s;
+    margin-top: 0;
+}
+.user-message-wrapper:hover .user-actions {
+    opacity: 1;
+}
+.user-message-wrapper .copy-btn {
+    border: none;
+    background: transparent;
+}
+
 .message.bot {
     align-self: flex-start;
     background-color: var(--vscode-editor-inactiveSelectionBackground);
@@ -90,13 +114,14 @@ details[open].thinking-block summary::before {
     padding: 6px 0 6px 12px;
     border-left: 2px solid var(--vscode-textBlockQuote-border);
     margin-left: 4px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
+    display: block;
     min-width: 0;
     max-height: 200px;
     overflow-x: hidden;
     overflow-y: auto;
+}
+.thinking-content > * + * {
+    margin-top: 6px;
 }
 .thinking-text {
     white-space: pre-wrap;
@@ -285,5 +310,40 @@ details[open].thinking-block summary::before {
 
 .system-msg {
     text-align: center; font-size: 12px; opacity: 0.6; margin: 5px 0;
+}
+
+/* 📋 消息复制按钮 */
+.message-actions {
+    display: flex;
+    justify-content: flex-start;
+    margin-top: 6px;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+.message:hover .message-actions,
+.message-actions:focus-within {
+    opacity: 1;
+}
+.copy-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 6px;
+    font-size: 14px;
+    color: var(--vscode-descriptionForeground);
+    background: transparent;
+    border: 1px solid var(--vscode-widget-border, rgba(128,128,128,0.3));
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+    min-width: 28px;
+}
+.copy-btn:hover {
+    background: var(--vscode-toolbar-hoverBackground);
+    color: var(--vscode-foreground);
+}
+.copy-btn.copied {
+    color: var(--vscode-testing-iconPassed, #4caf50);
+    border-color: var(--vscode-testing-iconPassed, #4caf50);
 }
 `;

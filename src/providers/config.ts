@@ -16,6 +16,13 @@ export class Config {
             .get<boolean>('showToolUsageIndicator', true);
     }
 
+    static getStepDetailLevel(): 'compact' | 'full' {
+        const configured = vscode.workspace
+            .getConfiguration('codexSidebar')
+            .get<string>('stepDetailLevel', 'compact');
+        return configured === 'full' ? 'full' : 'compact';
+    }
+
     static shouldEnableCodexThinkingNoiseFilter(): boolean {
         return vscode.workspace
             .getConfiguration('codexSidebar')
@@ -46,6 +53,37 @@ export class Config {
             .get<boolean>('claudeDisableThinking', false);
     }
 
+    static getClaudeModel(): string {
+        return vscode.workspace
+            .getConfiguration('codexSidebar')
+            .get<string>('claudeModel', '');
+    }
+
+    static getClaudeAgent(): string {
+        return vscode.workspace
+            .getConfiguration('codexSidebar')
+            .get<string>('claudeAgent', '');
+    }
+
+    static getClaudeTools(): string {
+        return vscode.workspace
+            .getConfiguration('codexSidebar')
+            .get<string>('claudeTools', '');
+    }
+
+    static getClaudePermissionMode(): 'dangerouslySkip' | 'allowDangerouslySkip' | 'default' {
+        const configured = vscode.workspace
+            .getConfiguration('codexSidebar')
+            .get<string>('claudePermissionMode', 'dangerouslySkip');
+        if (configured === 'allowDangerouslySkip') {
+            return 'allowDangerouslySkip';
+        }
+        if (configured === 'default') {
+            return 'default';
+        }
+        return 'dangerouslySkip';
+    }
+
     static shouldAutoResumePiSession(): boolean {
         return vscode.workspace
             .getConfiguration('codexSidebar')
@@ -56,6 +94,24 @@ export class Config {
         return vscode.workspace
             .getConfiguration('codexSidebar')
             .get<boolean>('piDisableThinking', false);
+    }
+
+    static getPiModel(): string {
+        return vscode.workspace
+            .getConfiguration('codexSidebar')
+            .get<string>('piModel', '');
+    }
+
+    static getPiApiKey(): string {
+        return vscode.workspace
+            .getConfiguration('codexSidebar')
+            .get<string>('piApiKey', '');
+    }
+
+    static getPiThinkingLevel(): string {
+        return vscode.workspace
+            .getConfiguration('codexSidebar')
+            .get<string>('piThinkingLevel', 'default');
     }
 
     static getTitleGenerationMode(): TitleGenerationMode {
@@ -96,5 +152,67 @@ export class Config {
             return 'zh-CN';
         }
         return 'en';
+    }
+
+    static getCodexConfigOverrides(): string {
+        return vscode.workspace
+            .getConfiguration('codexSidebar')
+            .get<string>('codexConfigOverrides', '');
+    }
+
+    static getCodexModel(): string {
+        return vscode.workspace
+            .getConfiguration('codexSidebar')
+            .get<string>('codexModel', '');
+    }
+
+    static shouldUseCodexOss(): boolean {
+        return vscode.workspace
+            .getConfiguration('codexSidebar')
+            .get<boolean>('codexOss', false);
+    }
+
+    static getCodexProfile(): string {
+        return vscode.workspace
+            .getConfiguration('codexSidebar')
+            .get<string>('codexProfile', '');
+    }
+
+    static getCodexSandboxMode(): 'default' | 'read-only' | 'workspace-write' | 'danger-full-access' {
+        const configured = vscode.workspace
+            .getConfiguration('codexSidebar')
+            .get<string>('codexSandboxMode', 'default');
+        if (configured === 'read-only') {
+            return 'read-only';
+        }
+        if (configured === 'workspace-write') {
+            return 'workspace-write';
+        }
+        if (configured === 'danger-full-access') {
+            return 'danger-full-access';
+        }
+        return 'default';
+    }
+
+    static getCodexApprovalPolicy(): 'default' | 'untrusted' | 'on-failure' | 'never' {
+        const configured = vscode.workspace
+            .getConfiguration('codexSidebar')
+            .get<string>('codexApprovalPolicy', 'default');
+        if (configured === 'untrusted') {
+            return 'untrusted';
+        }
+        if (configured === 'on-failure') {
+            return 'on-failure';
+        }
+        if (configured === 'never') {
+            return 'never';
+        }
+        return 'default';
+    }
+
+    static shouldUseCodexFullAuto(): boolean {
+        return vscode.workspace
+            .getConfiguration('codexSidebar')
+            .get<boolean>('codexFullAuto', false);
     }
 }

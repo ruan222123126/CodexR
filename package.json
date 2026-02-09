@@ -61,6 +61,19 @@
           "default": true,
           "description": "Show tool usage count in the Thinking Process summary and highlight it when tools were used."
         },
+        "codexSidebar.stepDetailLevel": {
+          "type": "string",
+          "enum": [
+            "compact",
+            "full"
+          ],
+          "enumDescriptions": [
+            "Show only tool/command cards in steps",
+            "Show all model output including text and tool cards in steps"
+          ],
+          "default": "compact",
+          "description": "Detail level for step display. Compact shows only commands/tools, Full shows all model output."
+        },
         "codexSidebar.codexThinkingNoiseFilterEnabled": {
           "type": "boolean",
           "default": true,
@@ -86,6 +99,36 @@
           "default": false,
           "description": "Disable thinking process output for Claude. When enabled, Claude will not show its reasoning process."
         },
+        "codexSidebar.claudeModel": {
+          "type": "string",
+          "default": "",
+          "description": "Model for Claude CLI. Supports aliases (sonnet, opus) or full names. Maps to --model flag. Leave empty to use default."
+        },
+        "codexSidebar.claudeAgent": {
+          "type": "string",
+          "default": "",
+          "description": "Agent type for Claude session (e.g., custom reviewer). Maps to --agent flag. Leave empty to use default."
+        },
+        "codexSidebar.claudeTools": {
+          "type": "string",
+          "default": "",
+          "description": "Available tools for Claude. Empty string disables tools, 'default' for all, or specify like 'Bash,Edit,Read'. Maps to --tools flag. Leave empty to use default."
+        },
+        "codexSidebar.claudePermissionMode": {
+          "type": "string",
+          "enum": [
+            "dangerouslySkip",
+            "allowDangerouslySkip",
+            "default"
+          ],
+          "enumDescriptions": [
+            "Directly disable all permission checks (--dangerously-skip-permissions)",
+            "Allow skipping permission checks during runtime (--allow-dangerously-skip-permissions)",
+            "Use Claude's default permission behavior"
+          ],
+          "default": "dangerouslySkip",
+          "description": "Permission check mode for Claude CLI."
+        },
         "codexSidebar.piAutoResumeSession": {
           "type": "boolean",
           "default": true,
@@ -95,6 +138,30 @@
           "type": "boolean",
           "default": false,
           "description": "Disable thinking process output for Pi. When enabled, Pi will not show its reasoning process."
+        },
+        "codexSidebar.piModel": {
+          "type": "string",
+          "default": "",
+          "description": "Model ID for Pi CLI (e.g., gemini-2.5-flash, gemini-2.5-pro). Leave empty to use Pi's default."
+        },
+        "codexSidebar.piApiKey": {
+          "type": "string",
+          "default": "",
+          "description": "API key for Pi CLI. Leave empty to use environment variable."
+        },
+        "codexSidebar.piThinkingLevel": {
+          "type": "string",
+          "enum": [
+            "default",
+            "off",
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ],
+          "default": "default",
+          "description": "Thinking depth level for Pi CLI. Use 'default' to not specify (uses Pi's default)."
         },
         "codexSidebar.codexEnforceCheckpointPolicy": {
           "type": "boolean",
@@ -145,6 +212,65 @@
           ],
           "default": "en",
           "description": "Display language for the interface"
+        },
+        "codexSidebar.codexConfigOverrides": {
+          "type": "string",
+          "default": "",
+          "description": "Override Codex config values (e.g., 'model=o3'). Maps to -c/--config flag."
+        },
+        "codexSidebar.codexModel": {
+          "type": "string",
+          "default": "",
+          "description": "Model for Codex Agent (e.g., o3, gpt-4). Maps to -m/--model flag. Leave empty to use default."
+        },
+        "codexSidebar.codexOss": {
+          "type": "boolean",
+          "default": false,
+          "description": "Use local open source model provider (LM Studio, Ollama). Maps to --oss flag."
+        },
+        "codexSidebar.codexProfile": {
+          "type": "string",
+          "default": "",
+          "description": "Use a preset configuration profile from Codex config. Maps to -p/--profile flag. Leave empty to use default."
+        },
+        "codexSidebar.codexSandboxMode": {
+          "type": "string",
+          "enum": [
+            "default",
+            "read-only",
+            "workspace-write",
+            "danger-full-access"
+          ],
+          "enumDescriptions": [
+            "Use Codex default sandbox behavior",
+            "Read-only mode - no file modifications allowed",
+            "Allow writing to workspace directory only",
+            "Full access - dangerous, allows all operations"
+          ],
+          "default": "default",
+          "description": "Sandbox policy for shell command execution. Maps to -s/--sandbox flag."
+        },
+        "codexSidebar.codexApprovalPolicy": {
+          "type": "string",
+          "enum": [
+            "default",
+            "untrusted",
+            "on-failure",
+            "never"
+          ],
+          "enumDescriptions": [
+            "Use Codex default approval behavior",
+            "Only ask for approval on untrusted commands (non ls, cat, etc.)",
+            "Only ask for approval when execution fails",
+            "Never ask for approval (directly feedback errors to model)"
+          ],
+          "default": "default",
+          "description": "When to require human approval for command execution. Maps to -a/--ask-for-approval flag."
+        },
+        "codexSidebar.codexFullAuto": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable full auto mode (equivalent to -a on-request --sandbox workspace-write). Maps to --full-auto flag."
         }
       }
     }

@@ -10,6 +10,7 @@ import { Executor, type ExecutorDeps, type ExecutorCallbacks } from './providers
 import { Config } from './providers/config';
 import { createId, createSession, getWorkspaceDir } from './providers/utils';
 import { getTranslations, normalizeLanguage, type SupportedLanguage } from './i18n';
+import { checkAllStatus } from './providers/status-checker';
 import type {
     ChatSession,
     NormalizedInput,
@@ -66,6 +67,20 @@ export class CodexProvider implements vscode.WebviewViewProvider {
             Config.shouldAutoResumePiSession,
             Config.shouldDisableClaudeThinking,
             Config.shouldDisablePiThinking,
+            Config.getPiModel,
+            Config.getPiApiKey,
+            Config.getPiThinkingLevel,
+            Config.getCodexConfigOverrides,
+            Config.getCodexModel,
+            Config.shouldUseCodexOss,
+            Config.getCodexProfile,
+            Config.getClaudeModel,
+            Config.getClaudeAgent,
+            Config.getClaudeTools,
+            Config.getClaudePermissionMode,
+            Config.getCodexSandboxMode,
+            Config.getCodexApprovalPolicy,
+            Config.shouldUseCodexFullAuto,
         );
 
         this.titleGenerator = new TitleGenerator(
@@ -304,6 +319,7 @@ export class CodexProvider implements vscode.WebviewViewProvider {
             if (data.type === 'settings-request') {
                 this.postToWebview('settings-data', {
                     showToolUsageIndicator: Config.shouldShowToolUsageIndicator(),
+                    stepDetailLevel: Config.getStepDetailLevel(),
                     codexThinkingNoiseFilterEnabled: Config.shouldEnableCodexThinkingNoiseFilter(),
                     codexHideThinking: Config.shouldHideCodexThinking(),
                     codexAutoResumeSession: Config.shouldAutoResumeCodexSession(),
@@ -311,9 +327,25 @@ export class CodexProvider implements vscode.WebviewViewProvider {
                     claudeDisableThinking: Config.shouldDisableClaudeThinking(),
                     piAutoResumeSession: Config.shouldAutoResumePiSession(),
                     piDisableThinking: Config.shouldDisablePiThinking(),
+                    piModel: Config.getPiModel(),
+                    piApiKey: Config.getPiApiKey(),
+                    piThinkingLevel: Config.getPiThinkingLevel(),
                     titleGenerationMode: Config.getTitleGenerationMode(),
                     titleFixedProvider: Config.getTitleFixedProvider(),
                     language: Config.getLanguage(),
+                    // Codex configuration
+                    codexModel: Config.getCodexModel(),
+                    codexConfigOverrides: Config.getCodexConfigOverrides(),
+                    codexProfile: Config.getCodexProfile(),
+                    codexOss: Config.shouldUseCodexOss(),
+                    codexSandboxMode: Config.getCodexSandboxMode(),
+                    codexApprovalPolicy: Config.getCodexApprovalPolicy(),
+                    codexFullAuto: Config.shouldUseCodexFullAuto(),
+                    // Claude configuration
+                    claudeModel: Config.getClaudeModel(),
+                    claudeAgent: Config.getClaudeAgent(),
+                    claudeTools: Config.getClaudeTools(),
+                    claudePermissionMode: Config.getClaudePermissionMode(),
                 });
                 return;
             }
@@ -330,11 +362,24 @@ export class CodexProvider implements vscode.WebviewViewProvider {
                 }
                 return;
             }
+
+            if (data.type === 'open-provider-config') {
+                const provider = data.value;
+                await this.openProviderConfig(provider);
+                return;
+            }
+
+            if (data.type === 'status-request') {
+                const statuses = await checkAllStatus();
+                this.postToWebview('status-response', statuses);
+                return;
+            }
         });
 
         this.postToWebview('provider-init', {
             provider: this.getActiveSession()?.provider ?? 'codex',
             showToolUsageIndicator: Config.shouldShowToolUsageIndicator(),
+            stepDetailLevel: Config.getStepDetailLevel(),
             codexThinkingNoiseFilterEnabled: Config.shouldEnableCodexThinkingNoiseFilter(),
         });
 
@@ -359,6 +404,52 @@ export class CodexProvider implements vscode.WebviewViewProvider {
             await config.update(key, value, vscode.ConfigurationTarget.Global);
         } catch {
             // Ignore errors
+        }
+    }
+
+    private async openProviderConfig(provider: unknown): Promise<void> {
+        const os = require('os');
+        const path = require('path');
+        const fs = require('fs');
+
+        let configPath: string;
+        const homeDir = os.homedir();
+
+        if (provider === 'claude') {
+            // Claude config: ~/.claude/settings.json or ~/.claude.json
+            const claudeDir = path.join(homeDir, '.claude');
+            const claudeSettings = path.join(claudeDir, 'settings.json');
+            const claudeJson = path.join(homeDir, '.claude.json');
+            if (fs.existsSync(claudeSettings)) {
+                configPath = claudeSettings;
+            } else if (fs.existsSync(claudeJson)) {
+                configPath = claudeJson;
+            } else {
+                configPath = claudeSettings;
+            }
+        } else if (provider === 'pi') {
+            // Pi config: ~/.config/pi/config.json
+            const piConfigDir = path.join(homeDir, '.config', 'pi');
+            configPath = path.join(piConfigDir, 'config.json');
+        } else {
+            // Codex config: ~/.codex/config.toml or ~/.codex/config.json
+            const codexDir = path.join(homeDir, '.codex');
+            const codexToml = path.join(codexDir, 'config.toml');
+            const codexJson = path.join(codexDir, 'config.json');
+            if (fs.existsSync(codexToml)) {
+                configPath = codexToml;
+            } else if (fs.existsSync(codexJson)) {
+                configPath = codexJson;
+            } else {
+                configPath = codexToml;
+            }
+        }
+
+        try {
+            const uri = vscode.Uri.file(configPath);
+            await vscode.window.showTextDocument(uri, { preview: false });
+        } catch {
+            vscode.window.showWarningMessage(`Config file not found: ${configPath}`);
         }
     }
 

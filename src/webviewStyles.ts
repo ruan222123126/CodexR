@@ -8,6 +8,7 @@ import { CHAT_STYLES } from './styles/chat.js';
 import { INPUT_STYLES } from './styles/input.js';
 import { HISTORY_STYLES } from './styles/history.js';
 import { SETTINGS_STYLES } from './styles/settings.js';
+import { STATUS_STYLES } from './styles/status.js';
 
 export const WEBVIEW_STYLES = `
 <style>
@@ -17,5 +18,6 @@ ${CHAT_STYLES}
 ${INPUT_STYLES}
 ${HISTORY_STYLES}
 ${SETTINGS_STYLES}
+${STATUS_STYLES}
 </style>
 `;
