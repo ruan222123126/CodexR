@@ -1,8 +1,10 @@
 {
-  "name": "codexsidebar",
-  "displayName": "codexSidebar",
+  "name": "codeRuy",
+  "displayName": "codeRuy",
   "description": "",
   "version": "0.0.1",
+  "publisher": "Ruan",
+  "icon": "media/icon.png",
   "engines": {
     "vscode": "^1.108.0"
   },
@@ -20,7 +22,7 @@
       "activitybar": [
         {
           "id": "codex-sidebar",
-          "title": "CodexR",
+          "title": "codeR",
           "icon": "media/icon.svg"
         }
       ]
